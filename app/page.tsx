@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { sections, totalItems, type ChecklistSection } from '@/lib/checklist-data'
+import { sections, totalItems, type ChecklistItem, type ChecklistSection } from '@/lib/checklist-data'
+import DetailSheet from '@/components/DetailSheet'
 
 const STORAGE_KEY = 'sh-shop-checklist-v1'
 
@@ -33,15 +34,22 @@ function ProgressRing({ value, size = 120 }: { value: number; size?: number }) {
   )
 }
 
+interface DetailState {
+  item: ChecklistItem
+  section: ChecklistSection
+}
+
 function SectionCard({
   section,
   checked,
   onToggle,
+  onDetail,
   index,
 }: {
   section: ChecklistSection
   checked: Set<string>
   onToggle: (id: string) => void
+  onDetail: (item: ChecklistItem, section: ChecklistSection) => void
   index: number
 }) {
   const [expanded, setExpanded] = useState(true)
@@ -64,26 +72,22 @@ function SectionCard({
         <span className="text-2xl">{section.emoji}</span>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span
-              className="font-700 text-sm"
-              style={{ color: section.textColor }}
-            >
+            <span className="font-700 text-sm" style={{ color: section.textColor }}>
               {section.title}
             </span>
             {allDone && (
-              <span className="text-xs px-2 py-0.5 rounded-full bg-white font-500" style={{ color: section.checkColor }}>
+              <span
+                className="text-xs px-2 py-0.5 rounded-full bg-white font-500"
+                style={{ color: section.checkColor }}
+              >
                 완료 ✓
               </span>
             )}
           </div>
-          {/* Mini progress bar */}
           <div className="mt-1.5 h-1.5 rounded-full bg-white/60 overflow-hidden w-full">
             <div
               className="h-full rounded-full transition-all duration-500"
-              style={{
-                width: `${sectionPct}%`,
-                backgroundColor: section.progressColor,
-              }}
+              style={{ width: `${sectionPct}%`, backgroundColor: section.progressColor }}
             />
           </div>
         </div>
@@ -106,8 +110,9 @@ function SectionCard({
           {section.items.map(item => {
             const isChecked = checked.has(item.id)
             return (
-              <li key={item.id}>
-                <label className="flex items-start gap-3 px-4 py-3.5 cursor-pointer active:bg-gray-50 transition-colors">
+              <li key={item.id} className="flex items-stretch">
+                {/* Checkbox + text area */}
+                <label className="flex items-start gap-3 px-4 py-3.5 cursor-pointer active:bg-gray-50 transition-colors flex-1 min-w-0">
                   <div className="mt-0.5 shrink-0">
                     <input
                       type="checkbox"
@@ -155,6 +160,34 @@ function SectionCard({
                     )}
                   </div>
                 </label>
+
+                {/* Detail arrow button */}
+                <button
+                  onClick={() => onDetail(item, section)}
+                  className="flex items-center justify-center w-11 shrink-0 active:bg-gray-50 transition-colors border-l border-gray-50"
+                  aria-label={`${item.text} 상세 보기`}
+                >
+                  <div
+                    className="w-6 h-6 rounded-full flex items-center justify-center transition-colors"
+                    style={{ backgroundColor: section.bgLight }}
+                  >
+                    <svg
+                      width="10"
+                      height="10"
+                      viewBox="0 0 10 10"
+                      fill="none"
+                      style={{ color: section.textColor }}
+                    >
+                      <path
+                        d="M3 2L7 5L3 8"
+                        stroke="currentColor"
+                        strokeWidth="1.6"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </div>
+                </button>
               </li>
             )
           })}
@@ -189,6 +222,7 @@ export default function Home() {
   const [checked, setChecked] = useState<Set<string>>(new Set())
   const [loaded, setLoaded] = useState(false)
   const [showConfetti, setShowConfetti] = useState(false)
+  const [detail, setDetail] = useState<DetailState | null>(null)
   const prevCount = useRef(0)
 
   useEffect(() => {
@@ -212,7 +246,6 @@ export default function Home() {
         next.add(id)
       }
       localStorage.setItem(STORAGE_KEY, JSON.stringify([...next]))
-
       if (next.size === totalItems && prevCount.current < totalItems) {
         setShowConfetti(true)
         setTimeout(() => setShowConfetti(false), 2000)
@@ -220,6 +253,14 @@ export default function Home() {
       prevCount.current = next.size
       return next
     })
+  }, [])
+
+  const openDetail = useCallback((item: ChecklistItem, section: ChecklistSection) => {
+    setDetail({ item, section })
+  }, [])
+
+  const closeDetail = useCallback(() => {
+    setDetail(null)
   }, [])
 
   const progress = loaded ? Math.round((checked.size / totalItems) * 100) : 0
@@ -242,28 +283,16 @@ export default function Home() {
           background: 'linear-gradient(135deg, #f43f5e 0%, #ec4899 40%, #a855f7 100%)',
         }}
       >
-        {/* Decorative blobs */}
-        <div
-          className="absolute -top-10 -right-10 w-40 h-40 rounded-full opacity-20"
-          style={{ background: 'white' }}
-        />
-        <div
-          className="absolute -bottom-6 -left-6 w-28 h-28 rounded-full opacity-15"
-          style={{ background: 'white' }}
-        />
+        <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full opacity-20 bg-white" />
+        <div className="absolute -bottom-6 -left-6 w-28 h-28 rounded-full opacity-15 bg-white" />
 
         <div className="relative flex flex-col items-center text-center text-white">
           <p className="text-white/80 text-xs font-500 tracking-widest uppercase mb-1">
             1인 예약제
           </p>
-          <h1 className="text-2xl font-900 leading-tight mb-1">
-            피부관리샵 창업
-          </h1>
-          <h2 className="text-lg font-500 text-white/90 mb-6">
-            준비 체크리스트 🌸
-          </h2>
+          <h1 className="text-2xl font-900 leading-tight mb-1">피부관리샵 창업</h1>
+          <h2 className="text-lg font-500 text-white/90 mb-6">준비 체크리스트 🌸</h2>
 
-          {/* Progress Ring */}
           <div className="relative">
             <ProgressRing value={progress} size={130} />
             <div className="absolute inset-0 flex flex-col items-center justify-center">
@@ -291,7 +320,7 @@ export default function Home() {
         <div className="flex items-start gap-2.5 bg-white rounded-xl px-4 py-3 text-xs text-gray-500 border border-gray-100">
           <span className="text-base shrink-0">💡</span>
           <p className="leading-relaxed">
-            항목을 탭하면 완료 표시가 됩니다. 진행 상황은 자동 저장됩니다.
+            항목을 탭하면 완료 표시, <span className="font-600 text-gray-700">→ 버튼</span>을 누르면 상세 설명을 볼 수 있습니다.
           </p>
         </div>
 
@@ -302,6 +331,7 @@ export default function Home() {
             section={section}
             checked={checked}
             onToggle={toggle}
+            onDetail={openDetail}
             index={index}
           />
         ))}
@@ -315,7 +345,6 @@ export default function Home() {
           </p>
         </div>
 
-        {/* Reset */}
         <div className="flex justify-center pt-2">
           <button
             onClick={resetAll}
@@ -326,8 +355,12 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Bottom safe area */}
-      <div className="h-8" />
+      {/* Detail Bottom Sheet */}
+      <DetailSheet
+        item={detail?.item ?? null}
+        section={detail?.section ?? null}
+        onClose={closeDetail}
+      />
     </div>
   )
 }
