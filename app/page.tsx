@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { sections, totalItems, type ChecklistItem, type ChecklistSection } from '@/lib/checklist-data'
 import DetailSheet from '@/components/DetailSheet'
 
@@ -29,10 +29,11 @@ interface DetailState {
 }
 
 function SectionCard({
-  section, checked, onToggle, onDetail, index,
+  section, checked, notes, onToggle, onDetail, index,
 }: {
   section: ChecklistSection
   checked: Set<string>
+  notes: Record<string, string>
   onToggle: (id: string) => void
   onDetail: (item: ChecklistItem, section: ChecklistSection) => void
   index: number
@@ -68,6 +69,7 @@ function SectionCard({
         <ul className="divide-y divide-gray-50">
           {section.items.map(item => {
             const isChecked = checked.has(item.id)
+            const hasNote = !!notes[item.id]
             return (
               <li key={item.id} className="flex items-stretch">
                 <label className="flex items-start gap-3 px-4 py-3.5 cursor-pointer active:bg-gray-50 transition-colors flex-1 min-w-0">
@@ -90,6 +92,9 @@ function SectionCard({
                     </p>
                     {item.detail && (
                       <p className="text-xs mt-0.5 transition-colors duration-200" style={{ color: isChecked ? '#d1d5db' : '#6b7280' }}>{item.detail}</p>
+                    )}
+                    {hasNote && (
+                      <p className="text-xs mt-1 text-gray-400 italic truncate">📝 {notes[item.id]}</p>
                     )}
                   </div>
                 </label>
@@ -125,29 +130,23 @@ function Confetti() {
   )
 }
 
-async function saveToDb(checkedIds: string[]) {
-  await fetch('/api/checklist', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ checkedIds }),
-  })
-}
-
 export default function Home() {
   const [checked, setChecked] = useState<Set<string>>(new Set())
+  const [notes, setNotes] = useState<Record<string, string>>({})
   const [loaded, setLoaded] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [showConfetti, setShowConfetti] = useState(false)
   const [detail, setDetail] = useState<DetailState | null>(null)
-  const prevCount = useRef(0)
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // 페이지 로드 시 DB에서 불러오기
   useEffect(() => {
     fetch('/api/checklist')
       .then(r => r.ok ? r.json() : [])
-      .then((ids: string[]) => {
-        setChecked(new Set(ids))
+      .then((items: { item_id: string; is_checked: boolean; note: string }[]) => {
+        setChecked(new Set(items.filter(i => i.is_checked).map(i => i.item_id)))
+        const noteMap: Record<string, string> = {}
+        items.forEach(i => { if (i.note) noteMap[i.item_id] = i.note })
+        setNotes(noteMap)
         setLoaded(true)
       })
       .catch(() => setLoaded(true))
@@ -156,33 +155,41 @@ export default function Home() {
   const toggle = useCallback((id: string) => {
     setChecked(prev => {
       const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
+      const nowChecked = !next.has(id)
+      if (nowChecked) next.add(id)
+      else next.delete(id)
 
-      // 즉시 DB 저장 (200ms debounce - 빠른 연속 클릭 대응)
-      if (saveTimer.current) clearTimeout(saveTimer.current)
       setSyncing(true)
-      saveTimer.current = setTimeout(() => {
-        saveToDb([...next]).finally(() => setSyncing(false))
-      }, 200)
+      fetch('/api/checklist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ itemId: id, checked: nowChecked }),
+      }).finally(() => setSyncing(false))
 
-      if (next.size === totalItems && prevCount.current < totalItems) {
+      if (next.size === totalItems && prev.size < totalItems) {
         setShowConfetti(true)
         setTimeout(() => setShowConfetti(false), 2000)
       }
-      prevCount.current = next.size
       return next
     })
+  }, [])
+
+  const handleNoteSave = useCallback(async (itemId: string, note: string) => {
+    await fetch('/api/checklist/note', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ itemId, note }),
+    })
+    setNotes(prev => ({ ...prev, [itemId]: note }))
   }, [])
 
   const openDetail = useCallback((item: ChecklistItem, section: ChecklistSection) => setDetail({ item, section }), [])
   const closeDetail = useCallback(() => setDetail(null), [])
 
   const resetAll = () => {
-    if (confirm('모든 체크를 초기화할까요?')) {
-      setChecked(new Set())
-      saveToDb([])
-    }
+    if (!confirm('모든 체크를 초기화할까요?')) return
+    setChecked(new Set())
+    fetch('/api/checklist', { method: 'DELETE' })
   }
 
   const progress = loaded ? Math.round((checked.size / totalItems) * 100) : 0
@@ -227,11 +234,11 @@ export default function Home() {
       <div className="px-4 py-5 space-y-3 max-w-lg mx-auto pb-24">
         <div className="flex items-start gap-2.5 bg-white rounded-xl px-4 py-3 text-xs text-gray-500 border border-gray-100">
           <span className="text-base shrink-0">💡</span>
-          <p className="leading-relaxed">항목을 탭하면 완료 표시, <span className="font-600 text-gray-700">→ 버튼</span>을 누르면 상세 설명을 볼 수 있습니다.</p>
+          <p className="leading-relaxed">항목을 탭하면 완료 표시, <span className="font-600 text-gray-700">→ 버튼</span>을 누르면 처리 내용 기록 및 이력을 볼 수 있습니다.</p>
         </div>
 
         {sections.map((section, index) => (
-          <SectionCard key={section.id} section={section} checked={checked} onToggle={toggle} onDetail={openDetail} index={index} />
+          <SectionCard key={section.id} section={section} checked={checked} notes={notes} onToggle={toggle} onDetail={openDetail} index={index} />
         ))}
 
         <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-4 text-xs text-amber-800">
@@ -246,7 +253,14 @@ export default function Home() {
         </div>
       </div>
 
-      <DetailSheet item={detail?.item ?? null} section={detail?.section ?? null} onClose={closeDetail} />
+      <DetailSheet
+        item={detail?.item ?? null}
+        section={detail?.section ?? null}
+        isChecked={detail ? checked.has(detail.item.id) : false}
+        currentNote={detail ? (notes[detail.item.id] ?? '') : ''}
+        onClose={closeDetail}
+        onNoteSave={handleNoteSave}
+      />
     </div>
   )
 }
