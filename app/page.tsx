@@ -225,14 +225,14 @@ function Confetti() {
   )
 }
 
-function ShareToast({ onClose }: { onClose: () => void }) {
+function ShareToast({ onClose, message = '링크가 복사되었습니다 ✓' }: { onClose: () => void; message?: string }) {
   useEffect(() => {
-    const t = setTimeout(onClose, 2000)
+    const t = setTimeout(onClose, 2500)
     return () => clearTimeout(t)
   }, [onClose])
   return (
-    <div className="fixed bottom-28 left-1/2 -translate-x-1/2 z-50 bg-gray-900 text-white text-sm px-4 py-2 rounded-full shadow-lg whitespace-nowrap">
-      링크가 복사되었습니다 ✓
+    <div className="fixed bottom-28 left-1/2 -translate-x-1/2 z-50 bg-gray-900 text-white text-sm px-4 py-2.5 rounded-full shadow-lg whitespace-nowrap">
+      {message}
     </div>
   )
 }
@@ -255,16 +255,37 @@ export default function Home() {
     const sharedId = params.get('s')
 
     if (sharedId) {
-      // 공유 URL로 접속 - 해당 세션 데이터 불러오기 (읽기 전용)
-      setIsShared(true)
-      setSessionId(sharedId)
-      fetch(`/api/checklist?s=${sharedId}`)
-        .then(r => r.ok ? r.json() : [])
-        .then((ids: string[]) => {
-          setChecked(new Set(ids))
-          setLoaded(true)
-        })
-        .catch(() => setLoaded(true))
+      const sharedWriteToken = params.get('w')
+
+      if (sharedWriteToken) {
+        // write_token 포함 URL → 내 기기로 등록하고 편집 가능하게 전환
+        localStorage.setItem(LOCAL_SESSION_KEY, sharedId)
+        localStorage.setItem(LOCAL_WRITE_TOKEN_KEY, sharedWriteToken)
+        // URL에서 토큰 제거 (깔끔하게)
+        window.history.replaceState(null, '', window.location.pathname)
+        // 이 세션의 데이터 불러오기 (편집 가능)
+        setSessionId(sharedId)
+        setWriteToken(sharedWriteToken)
+        fetch(`/api/checklist?s=${sharedId}`)
+          .then(r => r.ok ? r.json() : [])
+          .then((ids: string[]) => {
+            setChecked(new Set(ids))
+            localStorage.setItem(LOCAL_CHECKED_KEY, JSON.stringify(ids))
+            setLoaded(true)
+          })
+          .catch(() => setLoaded(true))
+      } else {
+        // write_token 없는 URL → 읽기 전용 공유 뷰
+        setIsShared(true)
+        setSessionId(sharedId)
+        fetch(`/api/checklist?s=${sharedId}`)
+          .then(r => r.ok ? r.json() : [])
+          .then((ids: string[]) => {
+            setChecked(new Set(ids))
+            setLoaded(true)
+          })
+          .catch(() => setLoaded(true))
+      }
     } else {
       // 내 세션 - localStorage에서 session_id / write_token 가져오거나 새로 생성
       let sid = localStorage.getItem(LOCAL_SESSION_KEY)
@@ -380,9 +401,10 @@ export default function Home() {
   }, [])
 
   const handleShare = useCallback(() => {
-    const url = `${window.location.origin}${window.location.pathname}?s=${sessionId}`
+    // write_token 포함 → 새 기기에서도 바로 편집 가능
+    const url = `${window.location.origin}${window.location.pathname}?s=${sessionId}&w=${writeToken}`
     navigator.clipboard.writeText(url).then(() => setShowShareToast(true))
-  }, [sessionId])
+  }, [sessionId, writeToken])
 
   const handleMyList = useCallback(() => {
     window.location.href = window.location.pathname
@@ -407,7 +429,7 @@ export default function Home() {
   return (
     <div className="min-h-screen" style={{ backgroundColor: '#fdf2f8' }}>
       {showConfetti && <Confetti />}
-      {showShareToast && <ShareToast onClose={() => setShowShareToast(false)} />}
+      {showShareToast && <ShareToast onClose={() => setShowShareToast(false)} message="기기 이동용 링크가 복사되었습니다 ✓" />}
 
       {/* Hero Header */}
       <div
