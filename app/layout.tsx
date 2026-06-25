@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { Noto_Sans_KR } from 'next/font/google'
 import './globals.css'
 import PasswordGate from '@/components/PasswordGate'
+import BottomNav from '@/components/BottomNav'
 
 const font = Noto_Sans_KR({
   subsets: ['latin'],
@@ -24,7 +25,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="ko">
       <body className={font.className}>
-        <PasswordGate>{children}</PasswordGate>
+        <PasswordGate>
+          <div className="pb-16">{children}</div>
+          <BottomNav />
+        </PasswordGate>
       </body>
     </html>
   )
