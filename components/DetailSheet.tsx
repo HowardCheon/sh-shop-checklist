@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import type { ChecklistItem, ChecklistSection } from '@/lib/checklist-data'
+import LocationCandidates from '@/components/LocationCandidates'
 
 interface HistoryEntry {
   id: number
@@ -160,6 +161,11 @@ export default function DetailSheet({ item, section, isChecked, currentNote, onC
                 ))}
               </ul>
             </div>
+          )}
+
+          {/* 장소 후보지 (상가 임대계약 체결 항목 전용) */}
+          {item?.id === 's1' && section && (
+            <LocationCandidates accentColor={section.checkColor} />
           )}
 
           {/* 처리 내용 메모 */}
