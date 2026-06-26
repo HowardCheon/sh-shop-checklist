@@ -8,7 +8,7 @@ const TABS = [
     href: '/',
     label: '체크리스트',
     icon: (active: boolean) => (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? 'url(#g1)' : '#9ca3af'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={active ? 'url(#g1)' : '#9ca3af'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <defs>
           <linearGradient id="g1" x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor="#f472b6" />
@@ -24,7 +24,7 @@ const TABS = [
     href: '/products',
     label: '상품관리',
     icon: (active: boolean) => (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? 'url(#g2)' : '#9ca3af'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={active ? 'url(#g2)' : '#9ca3af'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <defs>
           <linearGradient id="g2" x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor="#f472b6" />
@@ -51,11 +51,11 @@ export default function BottomNav() {
             <Link
               key={tab.href}
               href={tab.href}
-              className="flex-1 flex flex-col items-center justify-center py-2.5 gap-1 transition-opacity active:opacity-60"
+              className="flex-1 flex flex-col items-center justify-center py-1 gap-0.5 transition-opacity active:opacity-60"
             >
               {tab.icon(active)}
               <span
-                className="text-xs font-600 transition-colors"
+                className="text-[10px] font-600 transition-colors"
                 style={{ color: active ? '#a855f7' : '#9ca3af' }}
               >
                 {tab.label}

@@ -26,7 +26,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="ko">
       <body className={font.className}>
         <PasswordGate>
-          <div className="pb-16">{children}</div>
+          <div className="pb-10">{children}</div>
           <BottomNav />
         </PasswordGate>
       </body>

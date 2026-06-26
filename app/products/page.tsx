@@ -19,6 +19,11 @@ function formatPrice(n: number) {
   return n.toLocaleString() + '원'
 }
 
+function hourlyRate(price: number, durationMin: number | null) {
+  if (!durationMin) return null
+  return Math.round(price / durationMin * 60)
+}
+
 /* ── 상품 카드 ── */
 function ProductCard({
   product,
@@ -50,6 +55,9 @@ function ProductCard({
             <span className="text-base font-800" style={{ color: CAT.color }}>{formatPrice(product.price)}</span>
             {product.duration_min && (
               <span className="text-xs text-gray-400 bg-gray-50 rounded-full px-2 py-0.5">⏱ {product.duration_min}분</span>
+            )}
+            {hourlyRate(product.price, product.duration_min) && (
+              <span className="text-xs text-gray-400 bg-gray-50 rounded-full px-2 py-0.5">시간당 {hourlyRate(product.price, product.duration_min)!.toLocaleString()}원</span>
             )}
           </div>
           {product.description && (
@@ -283,7 +291,7 @@ export default function ProductsPage() {
       {!showForm && !editTarget && (
         <button
           onClick={() => setShowForm(true)}
-          className="fixed right-5 bottom-24 w-14 h-14 rounded-full shadow-lg flex items-center justify-center text-white text-2xl transition-transform active:scale-90 z-30"
+          className="fixed right-5 bottom-14 w-14 h-14 rounded-full shadow-lg flex items-center justify-center text-white text-2xl transition-transform active:scale-90 z-30"
           style={{ background: 'linear-gradient(135deg, #ec4899, #f472b6)' }}
         >
           +
