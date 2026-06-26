@@ -22,7 +22,7 @@ const TABS = [
   },
   {
     href: '/products',
-    label: '상품관리',
+    label: '시술메뉴',
     icon: (active: boolean) => (
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={active ? 'url(#g2)' : '#9ca3af'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <defs>
@@ -34,6 +34,40 @@ const TABS = [
         <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" />
         <line x1="3" y1="6" x2="21" y2="6" />
         <path d="M16 10a4 4 0 01-8 0" />
+      </svg>
+    ),
+  },
+  {
+    href: '/reservations',
+    label: '예약',
+    icon: (active: boolean) => (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={active ? 'url(#g3)' : '#9ca3af'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <defs>
+          <linearGradient id="g3" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#f472b6" />
+            <stop offset="100%" stopColor="#a855f7" />
+          </linearGradient>
+        </defs>
+        <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+        <line x1="16" y1="2" x2="16" y2="6" />
+        <line x1="8" y1="2" x2="8" y2="6" />
+        <line x1="3" y1="10" x2="21" y2="10" />
+      </svg>
+    ),
+  },
+  {
+    href: '/customers',
+    label: '고객',
+    icon: (active: boolean) => (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={active ? 'url(#g4)' : '#9ca3af'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <defs>
+          <linearGradient id="g4" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#f472b6" />
+            <stop offset="100%" stopColor="#a855f7" />
+          </linearGradient>
+        </defs>
+        <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
+        <circle cx="12" cy="7" r="4" />
       </svg>
     ),
   },
@@ -64,8 +98,7 @@ export default function BottomNav() {
           )
         })}
       </div>
-      {/* iOS safe area */}
-      <div className="h-safe-area-inset-bottom" style={{ height: 'env(safe-area-inset-bottom)' }} />
+      <div style={{ height: 'env(safe-area-inset-bottom)' }} />
     </nav>
   )
 }
