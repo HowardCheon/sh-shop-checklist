@@ -1,0 +1,1085 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>빌리브하남 508B 평면도 설계 도구 (복층)</title>
+<style>
+  :root{
+    --bg:#1e2126; --panel:#262a31; --panel2:#2f333b; --border:#3a3f47;
+    --accent:#4f8cff; --accent2:#ff9f4f; --text:#e7e9ec; --sub:#9aa2ad;
+    --danger:#ff5d5d; --grid-major:#3a3f47; --grid-minor:#2a2e34;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;margin:0;font-family:'Segoe UI',"Malgun Gothic",sans-serif;background:var(--bg);color:var(--text);}
+  #app{display:flex;flex-direction:column;height:100%;}
+
+  header{
+    display:flex;align-items:center;gap:12px;padding:8px 14px;
+    background:var(--panel);border-bottom:1px solid var(--border);flex-wrap:wrap;
+  }
+  header h1{font-size:15px;margin:0 16px 0 0;font-weight:600;white-space:nowrap;}
+  .field{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--sub);}
+  .field input[type=number]{width:64px;}
+  input, select{
+    background:var(--panel2);border:1px solid var(--border);color:var(--text);
+    border-radius:6px;padding:5px 7px;font-size:12px;
+  }
+  input[type=color]{padding:2px;width:36px;height:26px;}
+  button{
+    background:var(--panel2);border:1px solid var(--border);color:var(--text);
+    border-radius:6px;padding:6px 10px;font-size:12px;cursor:pointer;white-space:nowrap;
+  }
+  button:hover{background:#394049;}
+  button.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+  button.danger:hover{background:var(--danger);border-color:var(--danger);}
+  .sep{width:1px;align-self:stretch;background:var(--border);margin:0 4px;}
+  .spacer{flex:1;}
+  .floor-tabs{display:flex;gap:4px;}
+  .floor-tabs button{padding:6px 14px;font-weight:600;}
+
+  main{flex:1;display:flex;min-height:0;}
+  #sidebar{
+    width:230px;background:var(--panel);border-right:1px solid var(--border);
+    padding:10px;overflow-y:auto;flex-shrink:0;
+  }
+  #sidebar h2{font-size:12px;color:var(--sub);margin:14px 0 8px;text-transform:uppercase;letter-spacing:.05em;}
+  #sidebar h2:first-child{margin-top:0;}
+  .tool-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+  .tool-grid button{width:100%;text-align:left;padding:8px;}
+
+  #canvas-wrap{flex:1;position:relative;overflow:auto;background:#15171a;}
+  canvas{display:block;background:#181b1f;cursor:crosshair;}
+
+  #props{
+    width:250px;background:var(--panel);border-left:1px solid var(--border);
+    padding:12px;overflow-y:auto;flex-shrink:0;
+  }
+  #props h2{font-size:12px;color:var(--sub);margin:0 0 10px;text-transform:uppercase;letter-spacing:.05em;}
+  .prop-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:8px;}
+  .prop-row label{font-size:12px;color:var(--sub);flex-shrink:0;}
+  .prop-row input, .prop-row select{width:120px;}
+  .prop-row input[type=text]{width:150px;}
+  #propEmpty{color:var(--sub);font-size:13px;line-height:1.6;}
+  .prop-actions{display:flex;gap:6px;margin-top:14px;flex-wrap:wrap;}
+  .prop-actions button{flex:1;}
+  .info-box{font-size:11.5px;color:var(--sub);line-height:1.7;background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:10px;}
+  .info-box b{color:var(--text);}
+
+  footer{
+    display:flex;align-items:center;gap:16px;padding:6px 14px;
+    background:var(--panel);border-top:1px solid var(--border);
+    font-size:12px;color:var(--sub);flex-wrap:wrap;
+  }
+  footer b{color:var(--text);}
+  #toast{
+    position:fixed;bottom:60px;left:50%;transform:translateX(-50%);
+    background:#2f333b;border:1px solid var(--accent);color:#fff;
+    padding:8px 16px;border-radius:8px;font-size:13px;opacity:0;pointer-events:none;
+    transition:opacity .25s;z-index:50;
+  }
+  #toast.show{opacity:1;}
+  #fileInput{display:none;}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>🏠 빌리브하남 508B 평면도 설계 (복층)</h1>
+    <div class="field floor-tabs">
+      <button data-floor="1f" class="active">1층</button>
+      <button data-floor="loft">다락(로프트)</button>
+    </div>
+    <div class="sep"></div>
+    <div class="field">
+      <label>확대/축소</label>
+      <input type="range" id="zoom" min="0.5" max="4" step="0.1" value="1" style="width:100px;">
+      <span id="zoomLabel">1.0 px/cm</span>
+    </div>
+    <div class="sep"></div>
+    <div class="field">
+      <label>평면도 크기(cm)</label>
+      <input type="number" id="canvasW" value="792" min="100" max="850" step="1"> ×
+      <input type="number" id="canvasH" value="624" min="100" max="680" step="1">
+      <span style="color:var(--sub);">(실제 세대 792×624cm)</span>
+      <button id="applyCanvasSize">적용</button>
+    </div>
+    <div class="sep"></div>
+    <div class="field">
+      <label><input type="checkbox" id="snapToggle" checked> 스냅</label>
+      <input type="number" id="snapSize" value="5" min="1" step="1" style="width:48px;"> cm
+    </div>
+    <div class="field">
+      <label><input type="checkbox" id="dimToggle" checked> 치수 표시</label>
+    </div>
+    <div class="spacer"></div>
+    <button id="undoBtn" title="Ctrl+Z">↶ 실행취소</button>
+    <button id="redoBtn" title="Ctrl+Y">↷ 다시실행</button>
+    <div class="sep"></div>
+    <button id="saveLocal">💾 저장</button>
+    <button id="exportJson">⬇ JSON 내보내기</button>
+    <button id="importJson">⬆ JSON 가져오기</button>
+    <button id="exportPng">🖼 이미지로 내보내기</button>
+    <button id="clearAll" class="danger">이 층 초기화</button>
+    <input type="file" id="fileInput" accept="application/json">
+  </header>
+
+  <main>
+    <div id="sidebar">
+      <h2>도구</h2>
+      <div class="tool-grid">
+        <button data-tool="select" class="active">🖱 선택</button>
+        <button data-tool="wall">🧱 벽</button>
+        <button data-tool="room">▭ 공간(구역)</button>
+        <button data-tool="text">🔤 텍스트</button>
+      </div>
+
+      <h2>가구 / 설비</h2>
+      <div class="tool-grid" id="furnitureGrid"></div>
+
+      <h2>세대 정보</h2>
+      <div class="info-box">
+        전체 구조체 <b>792×624cm</b> (7,920×6,240mm, 벽체 중심선 기준), 계단 1개를 1층·다락이 공유하는 복층 구조.<br><br>
+        <b>1층 방 크기는 내부 안목치수</b>(외벽 200mm·내벽 190mm를 빼고 실제 사용 가능한 안쪽 크기)로 표시했습니다 — 주방 FL±0, 현관 FL-70, 욕실 FL-60, 욕실전실 FL±0, 거실 FL±0, 방 FL±0.<br><br>
+        <b>다락</b> — 다락1(236×249cm)·다락2(150×297cm) 모두 FL+2,540, 강마루 마감. 가운데 계단실(오픈)로 1층과 연결. 회색 점선 외곽선은 건물 구조체 전체(저층고·오픈보이드 포함) 참고선이며 다락 실사용 면적이 아닙니다.<br><br>
+        회색 점선 박스(공간/계단)는 도면 치수를 기반으로 배치한 기준선입니다. 사진 판독 기반이라 약간의 오차가 있을 수 있으니, 속성 패널에서 위치·크기를 자유롭게 조정하세요.
+      </div>
+    </div>
+
+    <div id="canvas-wrap">
+      <canvas id="canvas"></canvas>
+    </div>
+
+    <div id="props">
+      <h2>속성</h2>
+      <div id="propPanel">
+        <div id="propEmpty">선택된 객체가 없습니다.<br>도형을 클릭하거나 새로 그려보세요.</div>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <div>층: <b id="floorLabel">1층</b></div>
+    <div>커서: <b id="cursorPos">-</b></div>
+    <div>선택: <b id="selInfo">-</b></div>
+    <div>이 층 공간 면적: <b id="totalArea">0</b> ㎡</div>
+    <div>전체(1층+다락) 면적: <b id="allArea">0</b> ㎡</div>
+    <div class="spacer"></div>
+    <div>이 층 객체 수: <b id="shapeCount">0</b></div>
+  </footer>
+</div>
+<div id="toast"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- State ----------
+  const state = {
+    shapes: [],          // {id,type,x,y,w,h,rotation,label,color,fillOpacity,floor}
+    selectedId: null,
+    tool: "select",
+    pxPerCm: 1,
+    snap: true,
+    snapSize: 5,
+    showDim: true,
+    canvasCmW: 792,
+    canvasCmH: 624,
+    floor: "1f",          // "1f" | "loft"
+  };
+  const FLOOR_LABELS = { "1f":"1층", "loft":"다락(로프트)" };
+  const MAX_CANVAS_W_CM = 850;
+  const MAX_CANVAS_H_CM = 680;
+  const MIN_CANVAS_CM = 100;
+  function clampCanvasW(v){ return Math.min(MAX_CANVAS_W_CM, Math.max(MIN_CANVAS_CM, v)); }
+  function clampCanvasH(v){ return Math.min(MAX_CANVAS_H_CM, Math.max(MIN_CANVAS_CM, v)); }
+  let history = [];
+  let historyIndex = -1;
+  let nextId = 1;
+
+  const FURNITURE_TYPES = [
+    {type:"bed", label:"🛏 침대", w:150, h:200, color:"#5c8ac9"},
+    {type:"sofa", label:"🛋 소파", w:200, h:90, color:"#7a5cc9"},
+    {type:"diningTable", label:"🍽 식탁", w:140, h:80, color:"#c98a4b"},
+    {type:"chair", label:"🪑 의자", w:45, h:45, color:"#b07a3b", lockSize:true},
+    {type:"wardrobe", label:"🧥 옷장", w:120, h:60, color:"#8a6a4b"},
+    {type:"tv", label:"📺 TV장", w:140, h:40, color:"#444a52"},
+    {type:"counter", label:"🧾 싱크대", w:240, h:60, color:"#4bb08a"},
+    {type:"fridge", label:"🧊 냉장고", w:70, h:70, color:"#4bafc9"},
+    {type:"sink", label:"🚰 세면대", w:60, h:60, color:"#4b9ec9"},
+    {type:"toilet", label:"🚽 양변기", w:40, h:60, color:"#c9ccd1"},
+    {type:"shower", label:"🚿 샤워부스", w:90, h:90, color:"#7fd4e8"},
+    {type:"washer", label:"🌀 세탁기", w:60, h:60, color:"#9fa8b0"},
+    {type:"shoeCabinet", label:"👞 신발장", w:90, h:35, color:"#8a5a2b"},
+    {type:"door", label:"🚪 문", w:90, h:90, color:"#8a5a2b", squareLock:true},
+    {type:"window", label:"🌤 창문", w:120, h:15, color:"#7fd4e8"},
+    {type:"plant", label:"🌿 화분", w:40, h:40, color:"#4bc964"},
+    {type:"aircon", label:"❄ 에어컨", w:80, h:20, color:"#7fd4e8"},
+    {type:"pillar", label:"◼ 기둥", w:40, h:40, color:"#6b6f76"},
+    {type:"switch", label:"🔘 스위치", w:8, h:8, color:"#e8c34f", lockSize:true, iconOnly:true, icon:"🔘"},
+    {type:"outlet", label:"🔌 콘센트", w:8, h:8, color:"#e89a4f", lockSize:true, iconOnly:true, icon:"🔌"},
+    {type:"light", label:"💡 조명", w:40, h:40, color:"#ffe27a"},
+    {type:"curtain", label:"▥ 커텐", w:150, h:15, color:"#c97ab0"},
+    {type:"blind", label:"▤ 블라인드", w:150, h:15, color:"#9fb0c9"},
+    {type:"frame", label:"🖼 액자", w:40, h:30, color:"#a97c50"},
+    {type:"mirror", label:"🪞 거울", w:60, h:10, color:"#b8d4e8"},
+    {type:"stairs", label:"🪜 계단(가구)", w:72, h:250, color:"#6b6f76"},
+  ];
+
+  const canvas = document.getElementById("canvas");
+  const ctx = canvas.getContext("2d");
+  const canvasWrap = document.getElementById("canvas-wrap");
+
+  // ---------- Setup furniture buttons ----------
+  const furnitureGrid = document.getElementById("furnitureGrid");
+  FURNITURE_TYPES.forEach(f=>{
+    const btn = document.createElement("button");
+    btn.textContent = f.label;
+    btn.dataset.tool = "furniture:" + f.type;
+    btn.title = `${f.w}cm × ${f.h}cm (기본값, 드래그로 변경 가능)`;
+    furnitureGrid.appendChild(btn);
+  });
+
+  // ---------- Tool buttons ----------
+  const allToolButtons = () => document.querySelectorAll("#sidebar button[data-tool]");
+  function setTool(tool){
+    state.tool = tool;
+    allToolButtons().forEach(b=> b.classList.toggle("active", b.dataset.tool === tool));
+    if(tool !== "select"){ selectShape(null); }
+    canvas.style.cursor = tool === "select" ? "default" : "crosshair";
+  }
+  document.getElementById("sidebar").addEventListener("click", (e)=>{
+    const btn = e.target.closest("button[data-tool]");
+    if(!btn) return;
+    setTool(btn.dataset.tool);
+  });
+
+  // ---------- Floor tabs ----------
+  document.querySelectorAll(".floor-tabs button[data-floor]").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      state.floor = btn.dataset.floor;
+      document.querySelectorAll(".floor-tabs button[data-floor]").forEach(b=> b.classList.toggle("active", b===btn));
+      document.getElementById("floorLabel").textContent = FLOOR_LABELS[state.floor];
+      selectShape(null);
+      render();
+    });
+  });
+
+  // ---------- Canvas sizing ----------
+  function resizeCanvas(){
+    canvas.width = Math.round(state.canvasCmW * state.pxPerCm);
+    canvas.height = Math.round(state.canvasCmH * state.pxPerCm);
+    render();
+  }
+
+  document.getElementById("applyCanvasSize").addEventListener("click", ()=>{
+    state.canvasCmW = clampCanvasW(parseInt(document.getElementById("canvasW").value)||MAX_CANVAS_W_CM);
+    state.canvasCmH = clampCanvasH(parseInt(document.getElementById("canvasH").value)||MAX_CANVAS_H_CM);
+    document.getElementById("canvasW").value = state.canvasCmW;
+    document.getElementById("canvasH").value = state.canvasCmH;
+    resizeCanvas();
+    pushHistory();
+    showToast(`평면도 크기: ${state.canvasCmW}cm × ${state.canvasCmH}cm`);
+  });
+
+  const zoom = document.getElementById("zoom");
+  const zoomLabel = document.getElementById("zoomLabel");
+  zoom.addEventListener("input", ()=>{
+    state.pxPerCm = parseFloat(zoom.value);
+    zoomLabel.textContent = state.pxPerCm.toFixed(1) + " px/cm";
+    resizeCanvas();
+  });
+
+  document.getElementById("snapToggle").addEventListener("change", (e)=>{
+    state.snap = e.target.checked;
+  });
+  document.getElementById("snapSize").addEventListener("input", (e)=>{
+    state.snapSize = Math.max(1, parseInt(e.target.value)||10);
+  });
+  document.getElementById("dimToggle").addEventListener("change", (e)=>{
+    state.showDim = e.target.checked;
+    render();
+  });
+
+  // ---------- Coordinate helpers ----------
+  function toCm(px){ return px / state.pxPerCm; }
+  function toPx(cm){ return cm * state.pxPerCm; }
+  function snapVal(cm){
+    if(!state.snap) return Math.round(cm*10)/10;
+    return Math.round(cm / state.snapSize) * state.snapSize;
+  }
+  function getMouseCm(e){
+    const rect = canvas.getBoundingClientRect();
+    const x = toCm(e.clientX - rect.left);
+    const y = toCm(e.clientY - rect.top);
+    return {x, y};
+  }
+
+  // ---------- Floor-scoped shape helpers ----------
+  function curShapes(){
+    return state.shapes.filter(s=>s.floor===state.floor);
+  }
+
+  // ---------- Shape creation ----------
+  function makeShape(type, x, y, w, h, extra){
+    const preset = FURNITURE_TYPES.find(f=>f.type===type);
+    const base = {
+      id: nextId++,
+      type,
+      x, y, w, h,
+      rotation: 0,
+      floor: (extra && extra.floor) ? extra.floor : state.floor,
+      label: extra&&extra.label!==undefined ? extra.label : defaultLabel(type),
+      color: extra&&extra.color ? extra.color : (preset? preset.color : defaultColor(type)),
+      lockSize: !!(preset && preset.lockSize),
+      squareLock: !!(preset && preset.squareLock),
+      iconOnly: !!(preset && preset.iconOnly),
+      icon: preset ? preset.icon : undefined,
+    };
+    if(type==="door") base.doorOrient = 0;
+    return Object.assign(base, extra||{});
+  }
+  function defaultLabel(type){
+    if(type==="wall") return "";
+    if(type==="room") return "공간";
+    if(type==="stairwell") return "계단/오픈";
+    if(type==="outline") return "참고 외곽선";
+    if(type==="text") return "텍스트";
+    const f = FURNITURE_TYPES.find(x=>x.type===type);
+    return f ? f.label.replace(/^\S+\s/,"") : type;
+  }
+  function defaultColor(type){
+    if(type==="wall") return "#9a9fa6";
+    if(type==="room") return "#4f8cff";
+    if(type==="stairwell") return "#9a9fa6";
+    if(type==="outline") return "#6b6f76";
+    if(type==="text") return "#ffffff";
+    return "#4f8cff";
+  }
+
+  // ---------- Drawing / interaction state ----------
+  let dragMode = null; // 'draw' | 'move' | 'resize' | null
+  let dragHandle = null;
+  let dragStart = null;
+  let dragOrigShape = null;
+  let drawingShape = null;
+
+  const HANDLE_SIZE = 8;
+
+  function getSelected(){
+    return state.shapes.find(s=>s.id===state.selectedId) || null;
+  }
+
+  function hitTest(xCm, yCm){
+    const shapes = curShapes();
+    for(let i=shapes.length-1;i>=0;i--){
+      const s = shapes[i];
+      // tiny fixtures (switch/outlet) get an invisible larger grab area so they're
+      // not fiddly to click/drag even though their real-world footprint is tiny
+      const pad = s.iconOnly ? 6 : 0;
+      if(xCm>=s.x-pad && xCm<=s.x+s.w+pad && yCm>=s.y-pad && yCm<=s.y+s.h+pad) return s;
+    }
+    return null;
+  }
+
+  function getHandles(s){
+    const x0=s.x, y0=s.y, x1=s.x+s.w, y1=s.y+s.h, mx=(x0+x1)/2, my=(y0+y1)/2;
+    const corners = { nw:{x:x0,y:y0}, ne:{x:x1,y:y0}, sw:{x:x0,y:y1}, se:{x:x1,y:y1} };
+    if(s.squareLock) return corners; // only corner handles keep the shape square
+    return Object.assign({ n:{x:mx,y:y0}, w:{x:x0,y:my}, e:{x:x1,y:my}, s:{x:mx,y:y1} }, corners);
+  }
+  function hitHandle(s, xCm, yCm){
+    const handles = getHandles(s);
+    const tol = toCm(HANDLE_SIZE) * 1.3;
+    for(const key in handles){
+      const h = handles[key];
+      if(Math.abs(h.x-xCm)<=tol && Math.abs(h.y-yCm)<=tol) return key;
+    }
+    return null;
+  }
+
+  canvas.addEventListener("mousedown", (e)=>{
+    const {x,y} = getMouseCm(e);
+    if(state.tool === "select"){
+      const sel = getSelected();
+      if(sel && sel.floor===state.floor && !sel.lockSize && !sel.locked){
+        const handle = hitHandle(sel, x, y);
+        if(handle){
+          dragMode = "resize"; dragHandle = handle;
+          dragStart = {x,y}; dragOrigShape = Object.assign({}, sel);
+          return;
+        }
+      }
+      const hit = hitTest(x,y);
+      selectShape(hit ? hit.id : null);
+      if(hit && !hit.locked){
+        dragMode = "move"; dragStart = {x,y}; dragOrigShape = Object.assign({}, hit);
+      }
+    } else {
+      // drawing a new shape
+      let type = state.tool;
+      let extra = {floor: state.floor};
+      if(type.startsWith("furniture:")){
+        type = type.slice("furniture:".length);
+      }
+      dragMode = "draw";
+      dragStart = {x: snapVal(x), y: snapVal(y)};
+      const preset = FURNITURE_TYPES.find(f=>f.type===type);
+      let defW = 100, defH = 100;
+      if(type==="wall"){ defW=100; defH=10; }
+      else if(type==="room"){ defW=200; defH=200; }
+      else if(type==="text"){ defW=100; defH=30; }
+      else if(preset){ defW=preset.w; defH=preset.h; }
+      drawingShape = makeShape(type, dragStart.x, dragStart.y, 1, 1, Object.assign({__defW:defW,__defH:defH}, extra));
+      drawingShape.type = type;
+    }
+  });
+
+  window.addEventListener("mousemove", (e)=>{
+    const rect = canvas.getBoundingClientRect();
+    const inCanvas = e.clientX>=rect.left && e.clientX<=rect.right && e.clientY>=rect.top && e.clientY<=rect.bottom;
+    if(inCanvas){
+      const {x,y} = getMouseCm(e);
+      document.getElementById("cursorPos").textContent = `${x.toFixed(0)}cm, ${y.toFixed(0)}cm`;
+    }
+    if(!dragMode) return;
+    const {x,y} = getMouseCm(e);
+
+    if(dragMode === "draw" && drawingShape){
+      if(drawingShape.lockSize){
+        const dw = drawingShape.__defW, dh = drawingShape.__defH;
+        drawingShape.x = snapVal(x - dw/2);
+        drawingShape.y = snapVal(y - dh/2);
+        drawingShape.w = dw; drawingShape.h = dh;
+      } else if(drawingShape.squareLock){
+        const sx = dragStart.x, sy = dragStart.y;
+        const ex = snapVal(x), ey = snapVal(y);
+        const dxv = ex-sx, dyv = ey-sy;
+        const size = Math.max(Math.abs(dxv), Math.abs(dyv), 1);
+        drawingShape.x = dxv>=0 ? sx : sx-size;
+        drawingShape.y = dyv>=0 ? sy : sy-size;
+        drawingShape.w = size; drawingShape.h = size;
+      } else {
+        const sx = dragStart.x, sy = dragStart.y;
+        const ex = snapVal(x), ey = snapVal(y);
+        drawingShape.x = Math.min(sx,ex);
+        drawingShape.y = Math.min(sy,ey);
+        drawingShape.w = Math.max(1, Math.abs(ex-sx));
+        drawingShape.h = Math.max(1, Math.abs(ey-sy));
+      }
+      render(drawingShape);
+    } else if(dragMode === "move"){
+      const s = getSelected();
+      if(s){
+        s.x = snapVal(dragOrigShape.x + (x-dragStart.x));
+        s.y = snapVal(dragOrigShape.y + (y-dragStart.y));
+        render();
+        updatePropPanel();
+      }
+    } else if(dragMode === "resize"){
+      const s = getSelected();
+      if(!s) return;
+      let {x:ox,y:oy,w:ow,h:oh} = dragOrigShape;
+      const cx = snapVal(x), cy = snapVal(y);
+      if(s.squareLock){
+        const anchorX = dragHandle.includes("w") ? ox+ow : ox;
+        const anchorY = dragHandle.includes("n") ? oy+oh : oy;
+        const size = Math.max(Math.abs(cx-anchorX), Math.abs(cy-anchorY), state.snapSize);
+        s.x = cx>=anchorX ? anchorX : anchorX-size;
+        s.y = cy>=anchorY ? anchorY : anchorY-size;
+        s.w = size; s.h = size;
+      } else {
+        let nx=ox, ny=oy, nw=ow, nh=oh;
+        if(dragHandle.includes("n")){ nh = (oy+oh) - cy; ny = cy; }
+        if(dragHandle.includes("s")){ nh = cy - oy; }
+        if(dragHandle.includes("w")){ nw = (ox+ow) - cx; nx = cx; }
+        if(dragHandle.includes("e")){ nw = cx - ox; }
+        if(nw < state.snapSize) nw = state.snapSize;
+        if(nh < state.snapSize) nh = state.snapSize;
+        s.x = nx; s.y = ny; s.w = nw; s.h = nh;
+      }
+      render();
+      updatePropPanel();
+    }
+  });
+
+  window.addEventListener("mouseup", ()=>{
+    if(dragMode === "draw" && drawingShape){
+      if(drawingShape.lockSize){
+        // always fixed standard size, centered on the point (drag ignored)
+        const dw = drawingShape.__defW, dh = drawingShape.__defH;
+        const cx = drawingShape.x + drawingShape.w/2;
+        const cy = drawingShape.y + drawingShape.h/2;
+        drawingShape.x = snapVal(cx - dw/2);
+        drawingShape.y = snapVal(cy - dh/2);
+        drawingShape.w = dw; drawingShape.h = dh;
+      } else if(drawingShape.w <= 2 && drawingShape.h <= 2){
+        // treat as simple click -> use default preset size, centered at click point
+        const dw = drawingShape.__defW, dh = drawingShape.__defH;
+        drawingShape.x = snapVal(drawingShape.x - dw/2);
+        drawingShape.y = snapVal(drawingShape.y - dh/2);
+        drawingShape.w = dw; drawingShape.h = dh;
+      }
+      delete drawingShape.__defW; delete drawingShape.__defH;
+      state.shapes.push(drawingShape);
+      selectShape(drawingShape.id);
+      drawingShape = null;
+      setTool("select");
+      pushHistory();
+      showToast("객체가 추가되었습니다.");
+    } else if(dragMode === "move" || dragMode === "resize"){
+      pushHistory();
+    }
+    dragMode = null; dragHandle = null; dragStart = null; dragOrigShape = null;
+    render();
+  });
+
+  // double-click text to rename inline
+  canvas.addEventListener("dblclick", (e)=>{
+    const {x,y} = getMouseCm(e);
+    const hit = hitTest(x,y);
+    if(hit){
+      const val = prompt("라벨을 입력하세요:", hit.label || "");
+      if(val !== null){ hit.label = val; render(); updatePropPanel(); pushHistory(); }
+    }
+  });
+
+  document.addEventListener("keydown", (e)=>{
+    if(e.target.tagName === "INPUT") return;
+    if((e.key === "Delete" || e.key === "Backspace") && state.selectedId!==null){
+      deleteSelected();
+    } else if(e.ctrlKey && e.key.toLowerCase()==="z"){ e.preventDefault(); undo(); }
+    else if(e.ctrlKey && (e.key.toLowerCase()==="y" || (e.shiftKey && e.key.toLowerCase()==="z"))){ e.preventDefault(); redo(); }
+  });
+
+  function deleteSelected(){
+    const idx = state.shapes.findIndex(s=>s.id===state.selectedId);
+    if(idx>=0){
+      state.shapes.splice(idx,1);
+      selectShape(null);
+      pushHistory();
+      showToast("삭제되었습니다.");
+    }
+  }
+
+  // ---------- Selection & property panel ----------
+  function selectShape(id){
+    state.selectedId = id;
+    render();
+    updatePropPanel();
+  }
+
+  function updatePropPanel(){
+    const panel = document.getElementById("propPanel");
+    const s = getSelected();
+    document.getElementById("selInfo").textContent = s ? `${labelForType(s.type)} #${s.id}` : "-";
+    if(!s){
+      panel.innerHTML = `<div id="propEmpty">선택된 객체가 없습니다.<br>도형을 클릭하거나 새로 그려보세요.</div>`;
+      return;
+    }
+    panel.innerHTML = `
+      <div class="prop-row"><label>종류</label><div>${labelForType(s.type)}</div></div>
+      <div class="prop-row"><label>층</label><div>${FLOOR_LABELS[s.floor]||s.floor}</div></div>
+      <div class="prop-row"><label>라벨</label><input type="text" id="p_label" value="${escapeHtml(s.label||"")}"></div>
+      <div class="prop-row"><label>X (cm)</label><input type="number" id="p_x" value="${round1(s.x)}" step="${state.snapSize}" ${s.locked?"disabled":""}></div>
+      <div class="prop-row"><label>Y (cm)</label><input type="number" id="p_y" value="${round1(s.y)}" step="${state.snapSize}" ${s.locked?"disabled":""}></div>
+      <div class="prop-row"><label>너비 W (cm)</label><input type="number" id="p_w" value="${round1(s.w)}" min="1" step="${state.snapSize}" ${s.lockSize?"disabled":""}></div>
+      <div class="prop-row"><label>높이 H (cm)</label><input type="number" id="p_h" value="${round1(s.h)}" min="1" step="${state.snapSize}" ${s.lockSize?"disabled":""}></div>
+      <div class="prop-row"><label>색상</label><input type="color" id="p_color" value="${s.color}"></div>
+      <div class="prop-row"><label>면적</label><div>${((s.w*s.h)/10000).toFixed(2)} ㎡</div></div>
+      ${s.lockSize ? `<div style="font-size:11px;color:var(--sub);margin:-4px 0 8px;">표준 크기로 고정된 항목입니다.</div>` : ""}
+      ${s.squareLock ? `<div style="font-size:11px;color:var(--sub);margin:-4px 0 8px;">여닫이문은 정사각형(가로=세로)만 가능합니다.</div>` : ""}
+      ${s.locked ? `<div style="font-size:11px;color:var(--sub);margin:-4px 0 8px;">도면 기준선입니다. 위치/크기 잠금을 해제하려면 아래 잠금 해제 버튼을 누르세요.</div>` : ""}
+      <div class="prop-actions">
+        <button id="p_rotate">${s.type==="door" ? "↻ 여닫이 방향" : "↻ 90° 회전"}</button>
+        <button id="p_dup">⧉ 복제</button>
+        <button id="p_lock">${s.locked ? "🔓 잠금 해제" : "🔒 잠금"}</button>
+        <button id="p_del" class="danger">🗑 삭제</button>
+      </div>
+    `;
+    document.getElementById("p_label").addEventListener("input", e=>{ s.label=e.target.value; render(); });
+    document.getElementById("p_label").addEventListener("change", ()=>pushHistory());
+    bindNum("p_x", v=>{ s.x=v; });
+    bindNum("p_y", v=>{ s.y=v; });
+    bindNum("p_w", v=>{ s.w=Math.max(1,v); if(s.squareLock) s.h=s.w; });
+    bindNum("p_h", v=>{ s.h=Math.max(1,v); if(s.squareLock) s.w=s.h; });
+    document.getElementById("p_color").addEventListener("input", e=>{ s.color=e.target.value; render(); });
+    document.getElementById("p_color").addEventListener("change", ()=>pushHistory());
+    document.getElementById("p_rotate").addEventListener("click", ()=>{
+      if(s.type==="door"){
+        s.doorOrient = ((s.doorOrient||0)+1) % DOOR_ORIENTATIONS.length;
+      } else {
+        const w=s.w, h=s.h; s.w=h; s.h=w;
+      }
+      render(); updatePropPanel(); pushHistory();
+    });
+    document.getElementById("p_dup").addEventListener("click", ()=>{
+      const copy = Object.assign({}, s, {id: nextId++, x: s.x+state.snapSize, y: s.y+state.snapSize, locked:false});
+      state.shapes.push(copy);
+      selectShape(copy.id);
+      pushHistory();
+    });
+    document.getElementById("p_lock").addEventListener("click", ()=>{
+      s.locked = !s.locked;
+      render(); updatePropPanel(); pushHistory();
+    });
+    document.getElementById("p_del").addEventListener("click", deleteSelected);
+
+    function bindNum(id, fn){
+      const el = document.getElementById(id);
+      el.addEventListener("input", ()=>{
+        const v = parseFloat(el.value);
+        if(!isNaN(v)){ fn(v); render(); }
+      });
+      el.addEventListener("change", ()=>pushHistory());
+    }
+  }
+
+  function labelForType(type){
+    if(type==="wall") return "벽";
+    if(type==="room") return "공간(구역)";
+    if(type==="stairwell") return "계단실/오픈보이드";
+    if(type==="outline") return "참고 외곽선(구조체)";
+    if(type==="text") return "텍스트";
+    const f = FURNITURE_TYPES.find(x=>x.type===type);
+    return f ? f.label.replace(/^\S+\s/,"") : type;
+  }
+  function escapeHtml(str){
+    return str.replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  }
+  function round1(n){ return Math.round(n*10)/10; }
+
+  // ---------- Rendering ----------
+  function render(previewShape){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    drawGrid();
+    curShapes().forEach(s=> drawShape(s, s.id===state.selectedId));
+    if(previewShape) drawShape(previewShape, true, true);
+    updateStats();
+  }
+
+  function drawGrid(){
+    const minorCm = state.snapSize>0? state.snapSize : 10;
+    const majorCm = 100;
+    ctx.save();
+    for(let x=0; x<=state.canvasCmW; x+=minorCm){
+      const px = toPx(x);
+      ctx.strokeStyle = (Math.round(x) % majorCm === 0) ? getCss('--grid-major') : getCss('--grid-minor');
+      ctx.lineWidth = (Math.round(x) % majorCm === 0) ? 1 : 0.5;
+      ctx.beginPath(); ctx.moveTo(px,0); ctx.lineTo(px, canvas.height); ctx.stroke();
+    }
+    for(let y=0; y<=state.canvasCmH; y+=minorCm){
+      const py = toPx(y);
+      ctx.strokeStyle = (Math.round(y) % majorCm === 0) ? getCss('--grid-major') : getCss('--grid-minor');
+      ctx.lineWidth = (Math.round(y) % majorCm === 0) ? 1 : 0.5;
+      ctx.beginPath(); ctx.moveTo(0,py); ctx.lineTo(canvas.width, py); ctx.stroke();
+    }
+    // meter labels along top/left
+    ctx.fillStyle = "#5a616b"; ctx.font = "10px sans-serif";
+    for(let x=0; x<=state.canvasCmW; x+=majorCm){
+      ctx.fillText((x/100)+"m", toPx(x)+2, 10);
+    }
+    for(let y=0; y<=state.canvasCmH; y+=majorCm){
+      ctx.fillText((y/100)+"m", 2, toPx(y)+10);
+    }
+    ctx.restore();
+  }
+  function getCss(varName){
+    return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+  }
+
+  function drawShape(s, selected, isPreview){
+    const x=toPx(s.x), y=toPx(s.y), w=toPx(s.w), h=toPx(s.h);
+    ctx.save();
+    if(s.type==="room"){
+      ctx.strokeStyle = s.color; ctx.lineWidth = 2;
+      ctx.setLineDash([]);
+      ctx.strokeRect(x,y,w,h);
+      ctx.fillStyle = hexAlpha(s.color, 0.08);
+      ctx.fillRect(x,y,w,h);
+    } else if(s.type==="stairwell"){
+      ctx.strokeStyle = s.color; ctx.lineWidth = 2;
+      ctx.setLineDash([6,4]);
+      ctx.strokeRect(x,y,w,h);
+      ctx.setLineDash([]);
+      ctx.save();
+      ctx.beginPath(); ctx.rect(x,y,w,h); ctx.clip();
+      ctx.strokeStyle = hexAlpha(s.color, 0.5); ctx.lineWidth = 1;
+      for(let i=-h; i<w; i+=10){
+        ctx.beginPath(); ctx.moveTo(x+i, y); ctx.lineTo(x+i+h, y+h); ctx.stroke();
+      }
+      ctx.restore();
+    } else if(s.type==="outline"){
+      ctx.strokeStyle = hexAlpha(s.color, 0.6); ctx.lineWidth = 1.5;
+      ctx.setLineDash([8,5]);
+      ctx.strokeRect(x,y,w,h);
+      ctx.setLineDash([]);
+    } else if(s.type==="wall"){
+      drawBrickWall(x, y, w, h, s.color);
+    } else if(s.type==="text"){
+      ctx.fillStyle = s.color;
+      ctx.font = "14px sans-serif";
+      ctx.textBaseline = "top";
+      ctx.fillText(s.label||"텍스트", x, y);
+    } else if(s.type==="door"){
+      drawDoorSymbol(x, y, w, h, s.doorOrient||0, s.color);
+    } else if(s.type==="aircon"){
+      ctx.fillStyle = hexAlpha(s.color, 0.35);
+      ctx.strokeStyle = s.color; ctx.lineWidth = 1.5;
+      roundRect(ctx, x, y, w, h, 4);
+      ctx.fill(); ctx.stroke();
+      ctx.beginPath();
+      for(let i=1;i<4;i++){
+        const ly = y + (h*i/4);
+        ctx.moveTo(x+4, ly); ctx.lineTo(x+w-4, ly);
+      }
+      ctx.strokeStyle = hexAlpha(s.color, 0.8); ctx.lineWidth = 1;
+      ctx.stroke();
+    } else if(s.type==="pillar"){
+      ctx.fillStyle = hexAlpha(s.color, 0.6);
+      ctx.strokeStyle = s.color; ctx.lineWidth = 1.5;
+      ctx.fillRect(x,y,w,h);
+      ctx.strokeRect(x,y,w,h);
+      ctx.beginPath();
+      ctx.moveTo(x,y); ctx.lineTo(x+w,y+h);
+      ctx.moveTo(x+w,y); ctx.lineTo(x,y+h);
+      ctx.stroke();
+    } else if(s.type==="window"){
+      ctx.strokeStyle = s.color; ctx.lineWidth=3;
+      ctx.strokeRect(x,y,w,h);
+      ctx.beginPath(); ctx.moveTo(x,y+h/2); ctx.lineTo(x+w,y+h/2); ctx.stroke();
+    } else {
+      // generic furniture
+      ctx.fillStyle = hexAlpha(s.color, 0.35);
+      ctx.strokeStyle = s.color; ctx.lineWidth = 1.5;
+      roundRect(ctx, x, y, w, h, Math.min(8, w/4, h/4));
+      ctx.fill(); ctx.stroke();
+    }
+
+    // label - tiny fixtures (switch/outlet) show a bigger icon glyph instead of text,
+    // since the descriptive Korean name doesn't fit their real-world size and just
+    // makes them harder to see and grab.
+    if(s.iconOnly && s.icon){
+      ctx.font = "16px sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(s.icon, x+w/2, y+h/2);
+      ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
+    } else if(s.type!=="text" && s.type!=="outline" && s.label){
+      ctx.fillStyle = "#e7e9ec";
+      ctx.font = "11px sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline="middle";
+      ctx.fillText(s.label, x+w/2, y+h/2);
+      ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
+    } else if(s.type==="outline" && s.label){
+      ctx.fillStyle = hexAlpha(s.color, 0.8);
+      ctx.font = "10px sans-serif";
+      ctx.textAlign = "left"; ctx.textBaseline = "top";
+      ctx.fillText(s.label, x+4, y+4);
+      ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
+    }
+
+    // dimensions
+    if(state.showDim && s.type!=="text" && !isPreview){
+      drawDimText(x,y,w,h,s);
+    }
+    if(isPreview){ drawDimText(x,y,w,h,s); }
+
+    ctx.restore();
+
+    if(selected && !isPreview){
+      drawSelection(s);
+    }
+  }
+
+  function drawDimText(x,y,w,h,s){
+    ctx.fillStyle = "#ffd479";
+    ctx.font = "10px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(`${Math.round(s.w)}cm`, x+w/2, y-4);
+    ctx.save();
+    ctx.translate(x-4, y+h/2);
+    ctx.rotate(-Math.PI/2);
+    ctx.fillText(`${Math.round(s.h)}cm`, 0, 0);
+    ctx.restore();
+    ctx.textAlign = "left";
+  }
+
+  function drawSelection(s){
+    const x=toPx(s.x), y=toPx(s.y), w=toPx(s.w), h=toPx(s.h);
+    ctx.save();
+    ctx.strokeStyle = "#4f8cff";
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([5,3]);
+    ctx.strokeRect(x-2,y-2,w+4,h+4);
+    ctx.setLineDash([]);
+    if(!s.lockSize && !s.locked){
+      const handles = getHandles(s);
+      ctx.fillStyle = "#4f8cff";
+      for(const key in handles){
+        const hx = toPx(handles[key].x), hy = toPx(handles[key].y);
+        ctx.fillRect(hx-HANDLE_SIZE/2, hy-HANDLE_SIZE/2, HANDLE_SIZE, HANDLE_SIZE);
+      }
+    }
+    ctx.restore();
+  }
+
+  function roundRect(ctx,x,y,w,h,r){
+    r = Math.max(0, r);
+    ctx.beginPath();
+    ctx.moveTo(x+r,y);
+    ctx.arcTo(x+w,y,x+w,y+h,r);
+    ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r);
+    ctx.arcTo(x,y,x+w,y,r);
+    ctx.closePath();
+  }
+  function hexAlpha(hex, alpha){
+    const c = hex.replace('#','');
+    const bigint = parseInt(c.length===3 ? c.split('').map(ch=>ch+ch).join('') : c, 16);
+    const r=(bigint>>16)&255, g=(bigint>>8)&255, b=bigint&255;
+    return `rgba(${r},${g},${b},${alpha})`;
+  }
+
+  // Gray wall fill with a running-bond brick pattern, oriented along the wall's long axis.
+  function drawBrickWall(x, y, w, h, color){
+    ctx.save();
+    ctx.fillStyle = color;
+    ctx.fillRect(x, y, w, h);
+    ctx.beginPath();
+    ctx.rect(x, y, w, h);
+    ctx.clip();
+    ctx.strokeStyle = "rgba(0,0,0,0.35)";
+    ctx.lineWidth = 1;
+    const brickLen = Math.max(toPx(19), 6);
+    const brickThick = Math.max(toPx(9), 4);
+    if(w >= h){
+      // horizontal wall: brick courses stacked top-to-bottom, bricks run left-to-right
+      let row = 0;
+      for(let yy=y; yy<y+h; yy+=brickThick){
+        const rowH = Math.min(brickThick, y+h-yy);
+        ctx.beginPath(); ctx.moveTo(x, yy); ctx.lineTo(x+w, yy); ctx.stroke();
+        const offset = (row % 2 === 0) ? 0 : brickLen/2;
+        for(let xx=x-brickLen+offset; xx<x+w; xx+=brickLen){
+          ctx.beginPath(); ctx.moveTo(xx, yy); ctx.lineTo(xx, yy+rowH); ctx.stroke();
+        }
+        row++;
+      }
+    } else {
+      // vertical wall: brick courses stacked left-to-right, bricks run top-to-bottom
+      let col = 0;
+      for(let xx=x; xx<x+w; xx+=brickThick){
+        const colW = Math.min(brickThick, x+w-xx);
+        ctx.beginPath(); ctx.moveTo(xx, y); ctx.lineTo(xx, y+h); ctx.stroke();
+        const offset = (col % 2 === 0) ? 0 : brickLen/2;
+        for(let yy=y-brickLen+offset; yy<y+h; yy+=brickLen){
+          ctx.beginPath(); ctx.moveTo(xx, yy); ctx.lineTo(xx+colW, yy); ctx.stroke();
+        }
+        col++;
+      }
+    }
+    ctx.restore();
+  }
+
+  // 8 possible door orientations: every (hinge corner, wall edge) combination,
+  // so a door can be mounted on any of the 4 box edges with the hinge on either end.
+  const DOOR_ORIENTATIONS = [
+    {hinge:"sw", closed:"se", open:"nw"}, // wall=bottom, hinge left
+    {hinge:"se", closed:"sw", open:"ne"}, // wall=bottom, hinge right
+    {hinge:"nw", closed:"ne", open:"sw"}, // wall=top, hinge left
+    {hinge:"ne", closed:"nw", open:"se"}, // wall=top, hinge right
+    {hinge:"nw", closed:"sw", open:"ne"}, // wall=left, hinge top
+    {hinge:"sw", closed:"nw", open:"se"}, // wall=left, hinge bottom
+    {hinge:"ne", closed:"se", open:"nw"}, // wall=right, hinge top
+    {hinge:"se", closed:"ne", open:"sw"}, // wall=right, hinge bottom
+  ];
+
+  // Standard 2D-plan hinged door symbol: door leaf line + 90° swing arc.
+  // orient selects which box edge is the wall and which corner is the hinge.
+  function drawDoorSymbol(x, y, w, h, orient, color){
+    const corners = { nw:{x:x,y:y}, ne:{x:x+w,y:y}, sw:{x:x,y:y+h}, se:{x:x+w,y:y+h} };
+    const o = DOOR_ORIENTATIONS[orient] || DOOR_ORIENTATIONS[0];
+    const hingePt = corners[o.hinge];
+    const closedPt = corners[o.closed];
+    const openPt = corners[o.open];
+    const radius = Math.max(w,h);
+    const a1 = Math.atan2(closedPt.y-hingePt.y, closedPt.x-hingePt.x);
+    const a2 = Math.atan2(openPt.y-hingePt.y, openPt.x-hingePt.x);
+    let diff = a2 - a1;
+    while(diff <= -Math.PI) diff += Math.PI*2;
+    while(diff > Math.PI) diff -= Math.PI*2;
+    const anticlockwise = diff < 0;
+
+    ctx.strokeStyle = color; ctx.lineWidth = 2;
+    // wall opening (door frame width)
+    ctx.setLineDash([4,3]);
+    ctx.beginPath(); ctx.moveTo(hingePt.x,hingePt.y); ctx.lineTo(closedPt.x,closedPt.y); ctx.stroke();
+    ctx.setLineDash([]);
+    // door leaf, drawn open (perpendicular to the wall)
+    ctx.beginPath(); ctx.moveTo(hingePt.x,hingePt.y); ctx.lineTo(openPt.x,openPt.y); ctx.stroke();
+    // 90° swing arc
+    ctx.beginPath();
+    ctx.arc(hingePt.x, hingePt.y, radius, a1, a2, anticlockwise);
+    ctx.stroke();
+  }
+
+  function updateStats(){
+    const cur = curShapes();
+    document.getElementById("shapeCount").textContent = cur.length;
+    const roomArea = cur.filter(s=>s.type==="room")
+      .reduce((sum,s)=> sum + (s.w*s.h)/10000, 0);
+    document.getElementById("totalArea").textContent = roomArea.toFixed(2);
+    const allRoomArea = state.shapes.filter(s=>s.type==="room")
+      .reduce((sum,s)=> sum + (s.w*s.h)/10000, 0);
+    document.getElementById("allArea").textContent = allRoomArea.toFixed(2);
+  }
+
+  // ---------- History (undo/redo) ----------
+  function snapshot(){
+    return JSON.stringify({shapes: state.shapes, canvasCmW: state.canvasCmW, canvasCmH: state.canvasCmH});
+  }
+  function pushHistory(){
+    history = history.slice(0, historyIndex+1);
+    history.push(snapshot());
+    historyIndex = history.length-1;
+    if(history.length > 100){ history.shift(); historyIndex--; }
+  }
+  function restoreSnapshot(json){
+    const data = JSON.parse(json);
+    state.shapes = data.shapes.map(s=> Object.assign({floor:"1f"}, s)); // default floor for legacy data
+    state.canvasCmW = clampCanvasW(data.canvasCmW||MAX_CANVAS_W_CM);
+    state.canvasCmH = clampCanvasH(data.canvasCmH||MAX_CANVAS_H_CM);
+    document.getElementById("canvasW").value = state.canvasCmW;
+    document.getElementById("canvasH").value = state.canvasCmH;
+    nextId = Math.max(1, ...state.shapes.map(s=>s.id+1), nextId);
+    selectShape(null);
+    resizeCanvas();
+  }
+  function undo(){
+    if(historyIndex>0){ historyIndex--; restoreSnapshot(history[historyIndex]); showToast("실행취소"); }
+  }
+  function redo(){
+    if(historyIndex < history.length-1){ historyIndex++; restoreSnapshot(history[historyIndex]); showToast("다시실행"); }
+  }
+  document.getElementById("undoBtn").addEventListener("click", undo);
+  document.getElementById("redoBtn").addEventListener("click", redo);
+
+  // ---------- Save / Load / Export ----------
+  const FLOORPLAN_SLUG = "hanam508b";
+  document.getElementById("saveLocal").addEventListener("click", ()=>{
+    fetch("/api/floorplan", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ slug: FLOORPLAN_SLUG, data: JSON.parse(snapshot()) }),
+    })
+      .then(res=>{ if(!res.ok) throw new Error("save failed"); showToast("저장되었습니다."); })
+      .catch(()=> showToast("저장에 실패했습니다. 다시 시도해주세요."));
+  });
+  document.getElementById("exportJson").addEventListener("click", ()=>{
+    const blob = new Blob([snapshot()], {type:"application/json"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "hanam508b-floorplan.json"; a.click();
+    URL.revokeObjectURL(url);
+  });
+  const fileInput = document.getElementById("fileInput");
+  document.getElementById("importJson").addEventListener("click", ()=> fileInput.click());
+  fileInput.addEventListener("change", (e)=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = ()=>{
+      try{
+        restoreSnapshot(reader.result);
+        pushHistory();
+        showToast("JSON 파일을 불러왔습니다.");
+      }catch(err){ alert("올바르지 않은 파일입니다."); }
+    };
+    reader.readAsText(file);
+    fileInput.value = "";
+  });
+  document.getElementById("exportPng").addEventListener("click", ()=>{
+    const bak = state.selectedId;
+    selectShape(null);
+    const url = canvas.toDataURL("image/png");
+    const a = document.createElement("a");
+    a.href = url; a.download = `hanam508b-floorplan-${FLOOR_LABELS[state.floor]}.png`; a.click();
+    selectShape(bak);
+  });
+  document.getElementById("clearAll").addEventListener("click", ()=>{
+    if(!confirm(`${FLOOR_LABELS[state.floor]}의 모든 객체를 삭제하시겠습니까? (다른 층은 유지됩니다)`)) return;
+    state.shapes = state.shapes.filter(s=>s.floor!==state.floor);
+    selectShape(null);
+    pushHistory();
+  });
+
+  // ---------- Toast ----------
+  let toastTimer = null;
+  function showToast(msg){
+    const el = document.getElementById("toast");
+    el.textContent = msg;
+    el.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(()=> el.classList.remove("show"), 1600);
+  }
+
+  // ---------- Seed data (from floor plan drawings) ----------
+  // Dimensions are transcribed from the 빌리브하남 508B blueprint photos (mm -> cm).
+  // Overall envelope 792 x 624 cm, identical footprint on both floors.
+  // These are reference outlines only (locked) - drag/resize after unlocking if needed.
+  function seedDefault(){
+    // ---- 1층 ----
+    // 도면의 7,920x6,240 및 방 구분선은 벽체 중심선(구조) 기준 치수라서,
+    // 실내 마감(안목) 치수로 바꾸려면 벽 두께의 절반만큼 안쪽으로 당겨야 함.
+    // 외벽 두께 200mm(도면 확인) -> 각 외벽면에서 전체 200mm 안쪽으로,
+    // 내벽(칸막이) 두께 190mm(사용자 확인) -> 양쪽 방이 나눠 가지므로 각 95mm씩 안쪽으로.
+    state.shapes.push(makeShape("room", 20, 20, 263.5, 297, {label:"주방 (FL±0, 내부 안목치수)", floor:"1f", locked:true, color:"#4bb08a"}));
+    state.shapes.push(makeShape("room", 302.5, 20, 51.5, 297, {label:"현관 (FL-70, 내부 안목치수)", floor:"1f", locked:true, color:"#c9a34b"}));
+    state.shapes.push(makeShape("room", 373, 20, 148, 287.5, {label:"욕실 (FL-60, 내부 안목치수)", floor:"1f", locked:true, color:"#4b9ec9"}));
+    state.shapes.push(makeShape("room", 540, 20, 232, 287.5, {label:"욕실전실 (FL±0, 내부 안목치수)", floor:"1f", locked:true, color:"#4b7ec9"}));
+    state.shapes.push(makeShape("room", 20, 317, 461, 287, {label:"거실 (FL±0, 내부 안목치수)", floor:"1f", locked:true, color:"#4f8cff"}));
+    state.shapes.push(makeShape("room", 500, 326.5, 272, 277.5, {label:"방 (FL±0, 내부 안목치수)", floor:"1f", locked:true, color:"#c9784b"}));
+    state.shapes.push(makeShape("stairwell", 293, 80, 72, 250, {label:"계단 UP↑다락", floor:"1f", locked:true, color:"#9a9fa6"}));
+
+    // 문 위치는 위에서 다시 잡은 내벽 면에 맞췄고, 폭은 도면에 별도 치수가 없는 부분은
+    // 국내 표준 규격(현관문 700, 욕실문 700mm)으로 가정. 방문은 도면 비율 실측값(900mm) 유지.
+    state.shapes.push(makeShape("door", 302.5, 20, 51.5, 51.5, {label:"현관문(약 515, 안목폭 한계)", floor:"1f", locked:false, color:"#8a5a2b", doorOrient:2}));
+    state.shapes.push(makeShape("door", 373, 110, 70, 70, {label:"욕실문(700)", floor:"1f", locked:false, color:"#8a5a2b", doorOrient:4}));
+    state.shapes.push(makeShape("door", 540, 110, 70, 70, {label:"욕실전실문(700)", floor:"1f", locked:false, color:"#8a5a2b", doorOrient:4}));
+    state.shapes.push(makeShape("door", 481, 330, 90, 90, {label:"방문(900, 도면 비율 실측)", floor:"1f", locked:false, color:"#8a5a2b", doorOrient:4}));
+
+    // ---- 다락(로프트) ----
+    // 구조체(외벽) 외곽선은 1층과 동일한 792x624 전체 - 참고용으로만 얇은 점선 표시.
+    // 실제 사람이 쓸 수 있는 다락1/다락2는 그 안의 작은 구간뿐이고(사용자 확인),
+    // 나머지는 지붕 경사로 층고가 낮거나 1층 거실 위로 뚫린 오픈보이드 구간임.
+    state.shapes.push(makeShape("outline", 0, 0, 792, 624, {label:"구조체 외곽선(전체, 저층고+보이드 포함 참고용)", floor:"loft", locked:true, color:"#6b6f76"}));
+    state.shapes.push(makeShape("room", 52, 76, 236, 249, {label:"다락1 (FL+2,540, 유효 236×249)", floor:"loft", locked:true, color:"#4f8cff"}));
+    state.shapes.push(makeShape("room", 372, 22, 150, 297, {label:"다락2 (FL+2,540, 유효 150×297)", floor:"loft", locked:true, color:"#4f8cff"}));
+    state.shapes.push(makeShape("stairwell", 293, 80, 72, 250, {label:"계단실 DN↓1층(오픈)", floor:"loft", locked:true, color:"#9a9fa6"}));
+  }
+
+  // ---------- Init ----------
+  async function init(){
+    resizeCanvas();
+    // load from Supabase if present, else seed with the traced floor plan
+    try{
+      const res = await fetch(`/api/floorplan?slug=${FLOORPLAN_SLUG}`);
+      const json = await res.json();
+      if(json.data){
+        restoreSnapshot(JSON.stringify(json.data));
+      } else {
+        seedDefault();
+        render();
+      }
+    } catch(e){
+      showToast("불러오기에 실패했습니다. 기본 도면에서 시작합니다.");
+      seedDefault();
+      render();
+    }
+    pushHistory();
+    render();
+  }
+  init();
+})();
+</script>
+</body>
+</html>
