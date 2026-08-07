@@ -42,3 +42,6 @@ next-env.d.ts
 
 # bkit internal
 .bkit/
+
+# superpowers SDD workspace (per-plan scratch, not part of the codebase)
+.superpowers/
