@@ -1063,6 +1063,7 @@
     // load from Supabase if present, else seed with the traced floor plan
     try{
       const res = await fetch(`/api/floorplan?slug=${FLOORPLAN_SLUG}`);
+      if(!res.ok) throw new Error("load failed");
       const json = await res.json();
       if(json.data){
         restoreSnapshot(JSON.stringify(json.data));
