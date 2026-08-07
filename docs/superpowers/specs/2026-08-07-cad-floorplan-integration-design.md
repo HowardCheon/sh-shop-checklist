@@ -58,11 +58,13 @@ RLS는 이 프로젝트의 다른 테이블과 동일하게 처리한다(서비�
 
 ## 컴포넌트 포팅 방식
 
-원본 파일들은 각각 900~1100줄의 자기완결형 HTML/CSS/vanilla-JS(IIFE, `document.getElementById` 기반 DOM 조작, `<canvas>` 드로잉)이다. React로 재작성하지 않고 **최소 침습 포팅**한다:
+원본 파일들은 각각 900~1100줄의 자기완결형 HTML/CSS/vanilla-JS(IIFE, `document.getElementById` 기반 DOM 조작, `<canvas>` 드로잉)이다. React로 재작성하지 않고 **정적 파일 + iframe** 방식으로 포팅한다(최초 설계였던 `dangerouslySetInnerHTML` 삽입 방식은 원본 JS 안의 백틱/`${}` 템플릿 리터럴이 포팅 시 충돌하고 CSS 격리도 수작업이 필요해 폐기):
 
-- HTML 마크업(`<body>` 내부, `<script>` 제외)은 `dangerouslySetInnerHTML`로 렌더링한 래퍼 `<div>`에 그대로 삽입한다.
-- 원본 `<script>...</script>` 내용은 컴포넌트 JSX 끝부분의 `<script dangerouslySetInnerHTML={{ __html: ... }} />`로 그대로 삽입한다(직접 생성된 `<script>` 엘리먼트이므로 브라우저가 정상 실행함 — SSR된 HTML 파싱 시점에 원본과 동일하게 동작).
-- 원본 `<style>` 블록은 CSS 셀렉터를 래퍼 클래스(`.cad-shop-desktop`, `.cad-shop-mobile`, `.cad-hanam508b` 등)로 스코프 처리하여 다른 페이지(특히 항상 렌더링되는 `BottomNav`)에 스타일이 새어나가지 않게 한다. `:root{--var}` 변수 정의부는 래퍼 클래스로 스코프하고, `html,body{...}` 전역 규칙은 래퍼 내부 최상위 요소 규칙으로 변환한다.
+- 원본 HTML 파일을 거의 그대로 복사해 `public/floorplan/` 아래 정적 파일로 둔다 — `shop-desktop.html`(pg_cad.html), `shop-mobile.html`(mobile_cad.html), `hanam508b.html`(hanam508b_cad.html). `<style>`/`<script>` 내용은 원본 그대로 유지되므로 CSS 셀렉터 충돌이나 JS 이스케이프 문제가 전혀 없다(독립된 HTML 문서이므로 나머지 앱과 완전히 격리됨).
+- `app/floorplan/shop/page.tsx`, `app/floorplan/hanam508b/page.tsx`는 클라이언트 컴포넌트로, 각각 해당 정적 파일을 가리키는 전체화면 `<iframe>`을 렌더링한다.
+- `app/floorplan/shop/page.tsx`는 마운트 시 1회 `window.innerWidth`(768px 기준)를 판정해 `shop-desktop.html` 또는 `shop-mobile.html` 중 하나를 iframe `src`로 선택한다. 이후 창 크기 변경에는 반응하지 않는다(작업 중 iframe을 다시 로드해 데이터가 날아가는 것을 방지).
+- 정적 HTML 파일은 `public/` 아래에 있으므로 URL을 직접 알면(`/floorplan/shop-desktop.html` 등) PIN 게이트 없이도 접근 가능하다. 기존 PIN 게이트도 클라이언트 저장소 기반의 약한 보호 수준이므로 이번 작업에서는 이 트레이드오프를 허용한다.
+- `components/BottomNav.tsx`는 `/floorplan` 경로에서 자기 자신을 렌더링하지 않도록 한다(현재 pathname이 `/floorplan`로 시작하면 `null` 반환). 포팅된 도구가 원본과 동일하게 전체 뷰포트를 쓸 수 있게 하기 위함이며, 하단 탭 메뉴에 항목을 추가하지 않는다는 요구사항과도 일치한다.
 
 ### 스크립트에서 수정하는 3곳 (파일마다 동일 패턴)
 
