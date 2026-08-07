@@ -1,0 +1,1110 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>가게 평면도 설계 (모바일)</title>
+<style>
+  :root{
+    --bg:#1e2126; --panel:#262a31; --panel2:#2f333b; --border:#3a3f47;
+    --accent:#4f8cff; --accent2:#ff9f4f; --text:#e7e9ec; --sub:#9aa2ad;
+    --danger:#ff5d5d; --grid-major:#3a3f47; --grid-minor:#2a2e34;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;margin:0;font-family:'Segoe UI',"Malgun Gothic",sans-serif;background:var(--bg);color:var(--text);overscroll-behavior:none;}
+  #app{display:flex;flex-direction:column;height:100%;}
+  @supports (height: 100dvh){ #app{height:100dvh;} }
+
+  input, select{
+    background:var(--panel2);border:1px solid var(--border);color:var(--text);
+    border-radius:6px;padding:8px 9px;font-size:16px; /* 16px avoids iOS auto-zoom-on-focus */
+  }
+  input[type=color]{padding:2px;width:44px;height:36px;}
+  input[type=checkbox]{width:18px;height:18px;vertical-align:middle;}
+  button{
+    background:var(--panel2);border:1px solid var(--border);color:var(--text);
+    border-radius:8px;padding:8px 10px;font-size:13px;cursor:pointer;white-space:nowrap;
+  }
+  button:active{background:#394049;}
+  button.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+  button.danger{color:var(--danger);border-color:var(--danger);}
+  button.danger:active{background:var(--danger);color:#fff;}
+
+  header{
+    display:flex;align-items:center;gap:8px;padding:10px 10px;
+    background:var(--panel);border-bottom:1px solid var(--border);flex-shrink:0;
+  }
+  header h1{font-size:15px;margin:0;font-weight:600;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  header button{font-size:18px;padding:6px 12px;line-height:1;}
+
+  #statusBar{
+    display:flex;gap:14px;padding:6px 12px;background:var(--panel);
+    border-bottom:1px solid var(--border);font-size:11px;color:var(--sub);flex-shrink:0;
+    overflow-x:auto; white-space:nowrap;
+  }
+  #statusBar b{color:var(--text);}
+
+  #canvas-wrap{flex:1;position:relative;overflow:auto;background:#15171a;-webkit-overflow-scrolling:touch;min-height:0;}
+  canvas{display:block;background:#181b1f;touch-action:none;}
+
+  #toolbar{
+    display:flex;gap:6px;padding:8px;background:var(--panel);border-top:1px solid var(--border);
+    overflow-x:auto;-webkit-overflow-scrolling:touch;flex-shrink:0;
+  }
+  #toolbar button{
+    flex:0 0 auto;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    min-width:60px;min-height:52px;padding:6px 6px;font-size:10.5px;gap:2px;border-radius:10px;
+  }
+  #toolbar button .icon{font-size:19px;line-height:1;}
+  #toolbar .tsep{width:1px;background:var(--border);flex:0 0 1px;margin:4px 2px;}
+
+  .overlay{
+    position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:40;
+    opacity:0;pointer-events:none;transition:opacity .2s;
+  }
+  .overlay.show{opacity:1;pointer-events:auto;}
+
+  #settingsDrawer{
+    position:fixed;top:0;left:0;bottom:0;width:84%;max-width:340px;background:var(--panel);
+    z-index:50;transform:translateX(-105%);transition:transform .25s ease;overflow-y:auto;
+    padding:16px;border-right:1px solid var(--border);
+  }
+  #settingsDrawer.show{transform:translateX(0);}
+  #settingsDrawer h2{font-size:11px;color:var(--sub);margin:18px 0 10px;text-transform:uppercase;letter-spacing:.05em;}
+  #settingsDrawer h2:first-child{margin-top:0;}
+  #settingsDrawer .row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;}
+  #settingsDrawer .row label{font-size:13px;color:var(--sub);}
+  #settingsDrawer input[type=range]{width:100%;}
+  #settingsDrawer input[type=number]{width:90px;}
+  #settingsDrawer button{width:100%;margin-bottom:8px;padding:12px;font-size:14px;text-align:center;}
+  #settingsDrawer .hint{font-size:12px;color:var(--sub);line-height:1.6;}
+  #drawerClose{width:auto;display:inline-block;margin:0 0 10px auto;padding:6px 12px;}
+
+  /* Quick actions bar: replaces the old property sheet. Sits in normal flex flow
+     (not fixed/full-screen) so it only takes a thin strip instead of covering the canvas.
+     Position/size are adjusted by touch (drag to move, corner handles to resize) instead. */
+  #quickBar{
+    display:none;flex-direction:column;gap:8px;padding:8px 10px;
+    background:var(--panel);border-top:1px solid var(--border);flex-shrink:0;
+  }
+  #quickBar.show{display:flex;}
+  .qb-row{display:flex;align-items:center;gap:8px;}
+  .qb-row input[type=text]{flex:1;min-width:0;}
+  .qb-row button{min-width:44px;min-height:40px;font-size:15px;padding:6px 8px;}
+  .qb-dims{font-size:11px;color:var(--sub);flex:1;}
+  .qb-note{font-size:11px;color:var(--sub);white-space:nowrap;}
+
+  #toast{
+    position:fixed;bottom:120px;left:50%;transform:translateX(-50%);
+    background:#2f333b;border:1px solid var(--accent);color:#fff;
+    padding:9px 18px;border-radius:8px;font-size:13px;opacity:0;pointer-events:none;
+    transition:opacity .25s;z-index:60;max-width:90vw;text-align:center;
+  }
+  #toast.show{opacity:1;}
+  #fileInput{display:none;}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <button id="menuBtn">☰</button>
+    <h1>🏪 가게 평면도 설계</h1>
+    <button id="undoBtn" title="실행취소">↶</button>
+    <button id="redoBtn" title="다시실행">↷</button>
+  </header>
+
+  <div id="statusBar">
+    <div>면적 <b id="totalArea">0</b>㎡</div>
+    <div>객체 <b id="shapeCount">0</b></div>
+    <div>선택: <b id="selInfo">-</b></div>
+  </div>
+
+  <div id="canvas-wrap">
+    <canvas id="canvas"></canvas>
+  </div>
+
+  <nav id="toolbar">
+    <button data-tool="select" class="active"><span class="icon">🖱</span>선택</button>
+    <button data-tool="wall"><span class="icon">🧱</span>벽</button>
+    <button data-tool="room"><span class="icon">▭</span>공간</button>
+    <button data-tool="text"><span class="icon">🔤</span>텍스트</button>
+    <div class="tsep"></div>
+    <div id="furnitureGrid" style="display:contents;"></div>
+  </nav>
+
+  <div class="overlay" id="drawerOverlay"></div>
+  <div id="settingsDrawer">
+    <button id="drawerClose">✕ 닫기</button>
+
+    <h2>확대/축소</h2>
+    <input type="range" id="zoom" min="0.15" max="4" step="0.05" value="0.7">
+    <div class="row"><span id="zoomLabel">0.7 px/cm</span></div>
+
+    <h2>캔버스 크기 (cm, 최대 13m×5m)</h2>
+    <div class="row"><label>가로</label><input type="number" id="canvasW" value="1300" min="100" max="1300" step="10"></div>
+    <div class="row"><label>세로</label><input type="number" id="canvasH" value="500" min="100" max="500" step="10"></div>
+    <button id="applyCanvasSize">적용</button>
+
+    <h2>스냅 / 치수</h2>
+    <div class="row"><label><input type="checkbox" id="snapToggle" checked> 스냅 간격(cm)</label><input type="number" id="snapSize" value="10" min="1" step="1" style="width:70px;"></div>
+    <div class="row"><label><input type="checkbox" id="dimToggle" checked> 치수 표시</label></div>
+
+    <h2>저장 / 내보내기</h2>
+    <button id="saveLocal">💾 저장</button>
+    <button id="exportJson">⬇ JSON 내보내기</button>
+    <button id="importJson">⬆ JSON 가져오기</button>
+    <button id="exportPng">🖼 이미지로 내보내기</button>
+    <button id="clearAll" class="danger">전체 삭제</button>
+    <input type="file" id="fileInput" accept="application/json">
+
+    <h2>안내</h2>
+    <div class="hint">
+      캔버스를 손가락으로 드래그해서 크기를 지정하거나, 한 번 탭하면 기본 크기로 배치됩니다.
+      도형을 탭해 선택한 뒤 손가락으로 드래그하면 이동, 모서리 점을 드래그하면 크기 조절이 됩니다.
+      라벨/색상/회전/복제/삭제는 화면 아래 작은 도구 바에서 처리합니다.
+      이 파일은 PC용 index.html과 저장 형식이 동일해서 JSON 내보내기/가져오기로 서로 호환됩니다.
+    </div>
+  </div>
+
+  <div id="quickBar">
+    <div class="qb-row">
+      <input type="text" id="q_label" placeholder="라벨">
+      <input type="color" id="q_color">
+      <button id="q_rotate" title="회전">↻</button>
+      <button id="q_dup" title="복제">⧉</button>
+      <button id="q_del" class="danger" title="삭제">🗑</button>
+    </div>
+    <div class="qb-row">
+      <div class="qb-dims" id="q_dims">-</div>
+      <div class="qb-note" id="q_note"></div>
+    </div>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- State ----------
+  const state = {
+    shapes: [],          // {id,type,x,y,w,h,rotation,label,color,fillOpacity}
+    selectedId: null,
+    tool: "select",
+    pxPerCm: 0.7,
+    snap: true,
+    snapSize: 10,
+    showDim: true,
+    canvasCmW: 1300,
+    canvasCmH: 500,
+  };
+  const MAX_CANVAS_W_CM = 1300; // 13m
+  const MAX_CANVAS_H_CM = 500;  // 5m
+  const MIN_CANVAS_CM = 100;
+  function clampCanvasW(v){ return Math.min(MAX_CANVAS_W_CM, Math.max(MIN_CANVAS_CM, v)); }
+  function clampCanvasH(v){ return Math.min(MAX_CANVAS_H_CM, Math.max(MIN_CANVAS_CM, v)); }
+  let history = [];
+  let historyIndex = -1;
+  let nextId = 1;
+
+  const FURNITURE_TYPES = [
+    {type:"table", label:"🍽 테이블", w:80, h:80, color:"#c98a4b"},
+    {type:"chair", label:"🪑 의자", w:45, h:45, color:"#b07a3b", lockSize:true},
+    {type:"bed", label:"🛏 침대", w:150, h:200, color:"#5c8ac9"},
+    {type:"counter", label:"🧾 카운터", w:120, h:60, color:"#4bb08a"},
+    {type:"shelf", label:"🗄 진열대", w:100, h:40, color:"#c9b04b"},
+    {type:"fridge", label:"🧊 냉장고", w:70, h:70, color:"#4bafc9"},
+    {type:"sink", label:"🚰 세면대", w:60, h:60, color:"#4b9ec9"},
+    {type:"door", label:"🚪 문", w:90, h:90, color:"#8a5a2b", squareLock:true},
+    {type:"plant", label:"🌿 화분", w:40, h:40, color:"#4bc964"},
+    {type:"aircon", label:"❄ 에어컨", w:80, h:20, color:"#7fd4e8"},
+    {type:"pillar", label:"◼ 기둥", w:40, h:40, color:"#6b6f76"},
+    {type:"switch", label:"🔘 스위치", w:8, h:8, color:"#e8c34f", lockSize:true, iconOnly:true, icon:"🔘"},
+    {type:"outlet", label:"🔌 콘센트", w:8, h:8, color:"#e89a4f", lockSize:true, iconOnly:true, icon:"🔌"},
+    {type:"light", label:"💡 조명", w:40, h:40, color:"#ffe27a"},
+    {type:"curtain", label:"▥ 커텐", w:150, h:15, color:"#c97ab0"},
+    {type:"blind", label:"▤ 블라인드", w:150, h:15, color:"#9fb0c9"},
+    {type:"pos", label:"💳 포스기", w:40, h:40, color:"#5c9ac9"},
+    {type:"frame", label:"🖼 액자", w:40, h:30, color:"#a97c50"},
+  ];
+
+  const canvas = document.getElementById("canvas");
+  const ctx = canvas.getContext("2d");
+  const canvasWrap = document.getElementById("canvas-wrap");
+
+  // ---------- Setup furniture buttons ----------
+  const furnitureGrid = document.getElementById("furnitureGrid");
+  FURNITURE_TYPES.forEach(f=>{
+    const btn = document.createElement("button");
+    const label = f.label.replace(/^(\S+)\s(.*)$/, "$1|$2").split("|");
+    btn.innerHTML = `<span class="icon">${label[0]}</span>${label[1]||f.label}`;
+    btn.dataset.tool = "furniture:" + f.type;
+    btn.title = `${f.w}cm × ${f.h}cm (기본값, 드래그로 변경 가능)`;
+    furnitureGrid.appendChild(btn);
+  });
+
+  // ---------- Tool buttons ----------
+  const allToolButtons = () => document.querySelectorAll("#toolbar button[data-tool]");
+  function setTool(tool){
+    state.tool = tool;
+    allToolButtons().forEach(b=> b.classList.toggle("active", b.dataset.tool === tool));
+  }
+  document.getElementById("toolbar").addEventListener("click", (e)=>{
+    const btn = e.target.closest("button[data-tool]");
+    if(!btn) return;
+    setTool(btn.dataset.tool);
+    if(btn.dataset.tool !== "select"){ selectShape(null); }
+  });
+
+  // ---------- Settings drawer ----------
+  const menuBtn = document.getElementById("menuBtn");
+  const settingsDrawer = document.getElementById("settingsDrawer");
+  const drawerOverlay = document.getElementById("drawerOverlay");
+  function openDrawer(){ settingsDrawer.classList.add("show"); drawerOverlay.classList.add("show"); }
+  function closeDrawer(){ settingsDrawer.classList.remove("show"); drawerOverlay.classList.remove("show"); }
+  menuBtn.addEventListener("click", openDrawer);
+  drawerOverlay.addEventListener("click", closeDrawer);
+  document.getElementById("drawerClose").addEventListener("click", closeDrawer);
+
+  // ---------- Quick actions bar ----------
+  const quickBar = document.getElementById("quickBar");
+  function showQuickBar(){ quickBar.classList.add("show"); }
+  function hideQuickBar(){ quickBar.classList.remove("show"); }
+
+  // ---------- Canvas sizing ----------
+  // Phones are portrait (tall & narrow) but the shop is landscape (wide & shallow),
+  // so the drawing is rotated 90° for display only: the physical canvas swaps
+  // width/height versus the logical cm dimensions. All shape data (state.shapes,
+  // canvasCmW/H) stays in the original unrotated space - identical to index.html -
+  // so saves/JSON remain fully compatible; only rendering + pointer math is rotated.
+  function resizeCanvas(){
+    canvas.width = Math.round(state.canvasCmH * state.pxPerCm);
+    canvas.height = Math.round(state.canvasCmW * state.pxPerCm);
+    render();
+  }
+
+  document.getElementById("applyCanvasSize").addEventListener("click", ()=>{
+    state.canvasCmW = clampCanvasW(parseInt(document.getElementById("canvasW").value)||MAX_CANVAS_W_CM);
+    state.canvasCmH = clampCanvasH(parseInt(document.getElementById("canvasH").value)||MAX_CANVAS_H_CM);
+    document.getElementById("canvasW").value = state.canvasCmW;
+    document.getElementById("canvasH").value = state.canvasCmH;
+    resizeCanvas();
+    pushHistory();
+    showToast(`캔버스 크기: ${state.canvasCmW}cm × ${state.canvasCmH}cm`);
+  });
+
+  const zoom = document.getElementById("zoom");
+  const zoomLabel = document.getElementById("zoomLabel");
+  zoom.addEventListener("input", ()=>{
+    state.pxPerCm = parseFloat(zoom.value);
+    zoomLabel.textContent = state.pxPerCm.toFixed(2) + " px/cm";
+    resizeCanvas();
+  });
+
+  document.getElementById("snapToggle").addEventListener("change", (e)=>{
+    state.snap = e.target.checked;
+  });
+  document.getElementById("snapSize").addEventListener("input", (e)=>{
+    state.snapSize = Math.max(1, parseInt(e.target.value)||10);
+  });
+  document.getElementById("dimToggle").addEventListener("change", (e)=>{
+    state.showDim = e.target.checked;
+    render();
+  });
+
+  // ---------- Coordinate helpers ----------
+  function toCm(px){ return px / state.pxPerCm; }
+  function toPx(cm){ return cm * state.pxPerCm; }
+  function snapVal(cm){
+    if(!state.snap) return Math.round(cm*10)/10;
+    return Math.round(cm / state.snapSize) * state.snapSize;
+  }
+  function getPointerCm(e){
+    const rect = canvas.getBoundingClientRect();
+    const dispX = toCm(e.clientX - rect.left);
+    const dispY = toCm(e.clientY - rect.top);
+    return unrotatePoint(dispX, dispY);
+  }
+
+  // 90° clockwise display rotation. All shape/drag/hit-test math elsewhere stays in
+  // logical (unrotated) cm space, matching index.html exactly - these two functions
+  // are the only place the rotation is applied, once for drawing and once (inverted)
+  // for turning a screen tap back into logical coordinates.
+  function rotatePoint(x, y){
+    return { x: state.canvasCmH - y, y: x };
+  }
+  function unrotatePoint(dx, dy){
+    return { x: dy, y: state.canvasCmH - dx };
+  }
+  function rotateBox(x, y, w, h){
+    return { x: state.canvasCmH - y - h, y: x, w: h, h: w };
+  }
+
+  // ---------- Shape creation ----------
+  function makeShape(type, x, y, w, h, extra){
+    const preset = FURNITURE_TYPES.find(f=>f.type===type);
+    const base = {
+      id: nextId++,
+      type,
+      x, y, w, h,
+      rotation: 0,
+      label: extra&&extra.label!==undefined ? extra.label : defaultLabel(type),
+      color: extra&&extra.color ? extra.color : (preset? preset.color : defaultColor(type)),
+      lockSize: !!(preset && preset.lockSize),
+      squareLock: !!(preset && preset.squareLock),
+      iconOnly: !!(preset && preset.iconOnly),
+      icon: preset ? preset.icon : undefined,
+    };
+    if(type==="door") base.doorOrient = 0;
+    return Object.assign(base, extra||{});
+  }
+  function defaultLabel(type){
+    if(type==="wall") return "";
+    if(type==="room") return "공간";
+    if(type==="text") return "텍스트";
+    const f = FURNITURE_TYPES.find(x=>x.type===type);
+    return f ? f.label.replace(/^\S+\s/,"") : type;
+  }
+  function defaultColor(type){
+    if(type==="wall") return "#9a9fa6";
+    if(type==="room") return "#4f8cff";
+    if(type==="text") return "#ffffff";
+    return "#4f8cff";
+  }
+
+  // ---------- Drawing / interaction state ----------
+  let dragMode = null; // 'draw' | 'move' | 'resize' | 'pan' | null
+  let dragHandle = null;
+  let dragStart = null;
+  let dragOrigShape = null;
+  let drawingShape = null;
+
+  // Panning (dragging empty background / the locked 매장 홀 scrolls the view instead
+  // of doing nothing) - a plain tap still selects/deselects; only an actual drag pans.
+  const PAN_TAP_THRESHOLD = 8; // px of movement before a touch counts as a pan, not a tap
+  let panMoved = false;
+  let panPointerStart = null;
+  let panScrollStart = null;
+  let pendingSelectId = null;
+
+  // Two-finger pinch-to-zoom, tracked independently of the single-pointer drag state above.
+  const activePointers = new Map(); // pointerId -> {x,y} in client (viewport) coordinates
+  let pinchStartDist = null;
+  let pinchStartPxPerCm = null;
+  let pinchStartContentPoint = null; // the content pixel under the pinch midpoint, at the old scale
+  function pointerDist(a, b){ return Math.hypot(a.x-b.x, a.y-b.y); }
+
+  const HANDLE_SIZE = 16; // bigger than desktop for finger-friendly hit testing
+
+  function getSelected(){
+    return state.shapes.find(s=>s.id===state.selectedId) || null;
+  }
+
+  function hitTest(xCm, yCm){
+    for(let i=state.shapes.length-1;i>=0;i--){
+      const s = state.shapes[i];
+      // tiny fixtures (switch/outlet) get an invisible larger grab area so they're
+      // not fiddly to tap/drag even though their real-world footprint is tiny
+      const pad = s.iconOnly ? 6 : 0;
+      if(xCm>=s.x-pad && xCm<=s.x+s.w+pad && yCm>=s.y-pad && yCm<=s.y+s.h+pad) return s;
+    }
+    return null;
+  }
+
+  function getHandles(s){
+    const x0=s.x, y0=s.y, x1=s.x+s.w, y1=s.y+s.h, mx=(x0+x1)/2, my=(y0+y1)/2;
+    const corners = { nw:{x:x0,y:y0}, ne:{x:x1,y:y0}, sw:{x:x0,y:y1}, se:{x:x1,y:y1} };
+    if(s.squareLock) return corners; // only corner handles keep the shape square
+    return Object.assign({ n:{x:mx,y:y0}, w:{x:x0,y:my}, e:{x:x1,y:my}, s:{x:mx,y:y1} }, corners);
+  }
+  function hitHandle(s, xCm, yCm){
+    const handles = getHandles(s);
+    // Cap the grab radius to a share of the shape's own size, so at very zoomed-out
+    // levels (common on mobile) the resize zone can't swallow the whole shape body
+    // and block plain dragging/moving from its center.
+    const tol = Math.min(toCm(HANDLE_SIZE) * 1.3, Math.max(6, Math.min(s.w, s.h)/2 - 2));
+    let best = null, bestDist = Infinity;
+    for(const key in handles){
+      const h = handles[key];
+      const dx = h.x-xCm, dy = h.y-yCm;
+      if(Math.abs(dx)<=tol && Math.abs(dy)<=tol){
+        const dist = dx*dx + dy*dy;
+        if(dist < bestDist){ bestDist = dist; best = key; }
+      }
+    }
+    return best;
+  }
+
+  // Pointer Events unify mouse + touch + pen so the same logic drives desktop and mobile.
+  canvas.addEventListener("pointerdown", (e)=>{
+    activePointers.set(e.pointerId, {x: e.clientX, y: e.clientY});
+    if(activePointers.size === 2){
+      // Second finger just landed: switch to pinch-zoom, abandoning any single-finger
+      // draw/move/resize/pan gesture that may have just started with the first finger.
+      dragMode = null; dragHandle = null; dragStart = null; dragOrigShape = null; drawingShape = null;
+      const pts = Array.from(activePointers.values());
+      pinchStartDist = pointerDist(pts[0], pts[1]);
+      pinchStartPxPerCm = state.pxPerCm;
+      const rect = canvas.getBoundingClientRect();
+      const midX = (pts[0].x + pts[1].x)/2, midY = (pts[0].y + pts[1].y)/2;
+      pinchStartContentPoint = { x: (midX-rect.left) + canvasWrap.scrollLeft, y: (midY-rect.top) + canvasWrap.scrollTop };
+      return;
+    }
+    if(activePointers.size > 2) return; // ignore a third finger
+
+    const {x,y} = getPointerCm(e);
+    if(state.tool === "select"){
+      const sel = getSelected();
+      if(sel && !sel.lockSize && !sel.locked){
+        const handle = hitHandle(sel, x, y);
+        if(handle){
+          dragMode = "resize"; dragHandle = handle;
+          dragStart = {x,y}; dragOrigShape = Object.assign({}, sel);
+          return;
+        }
+      }
+      const hit = hitTest(x,y);
+      if(hit && !hit.locked){
+        selectShape(hit.id);
+        dragMode = "move"; dragStart = {x,y}; dragOrigShape = Object.assign({}, hit);
+      } else {
+        // Empty background or a locked shape (e.g. 매장 홀): a drag here pans the view
+        // instead of doing nothing - a plain tap (no movement) still selects/deselects.
+        dragMode = "pan";
+        panMoved = false;
+        panPointerStart = {x: e.clientX, y: e.clientY};
+        panScrollStart = {left: canvasWrap.scrollLeft, top: canvasWrap.scrollTop};
+        pendingSelectId = hit ? hit.id : null;
+      }
+    } else {
+      // drawing a new shape
+      let type = state.tool;
+      if(type.startsWith("furniture:")){
+        type = type.slice("furniture:".length);
+      }
+      dragMode = "draw";
+      dragStart = {x: snapVal(x), y: snapVal(y)};
+      const preset = FURNITURE_TYPES.find(f=>f.type===type);
+      let defW = 100, defH = 100;
+      if(type==="wall"){ defW=100; defH=10; }
+      else if(type==="room"){ defW=200; defH=200; }
+      else if(type==="text"){ defW=100; defH=30; }
+      else if(preset){ defW=preset.w; defH=preset.h; }
+      drawingShape = makeShape(type, dragStart.x, dragStart.y, 1, 1, {__defW:defW,__defH:defH});
+      drawingShape.type = type;
+    }
+  });
+
+  window.addEventListener("pointermove", (e)=>{
+    if(activePointers.has(e.pointerId)){
+      activePointers.set(e.pointerId, {x: e.clientX, y: e.clientY});
+    }
+    if(activePointers.size >= 2){
+      const pts = Array.from(activePointers.values()).slice(0,2);
+      const dist = pointerDist(pts[0], pts[1]);
+      const scale = dist / pinchStartDist;
+      const newPxPerCm = Math.max(0.15, Math.min(4, pinchStartPxPerCm * scale));
+      state.pxPerCm = newPxPerCm;
+      const zoomEl = document.getElementById("zoom");
+      zoomEl.value = newPxPerCm.toFixed(2);
+      document.getElementById("zoomLabel").textContent = newPxPerCm.toFixed(2) + " px/cm";
+      resizeCanvas();
+      const actualScale = newPxPerCm / pinchStartPxPerCm;
+      const rect = canvas.getBoundingClientRect();
+      const midX = (pts[0].x + pts[1].x)/2, midY = (pts[0].y + pts[1].y)/2;
+      canvasWrap.scrollLeft = pinchStartContentPoint.x*actualScale - (midX-rect.left);
+      canvasWrap.scrollTop = pinchStartContentPoint.y*actualScale - (midY-rect.top);
+      return;
+    }
+    if(!dragMode) return;
+
+    if(dragMode === "pan"){
+      const dx = e.clientX - panPointerStart.x, dy = e.clientY - panPointerStart.y;
+      if(Math.abs(dx) > PAN_TAP_THRESHOLD || Math.abs(dy) > PAN_TAP_THRESHOLD) panMoved = true;
+      canvasWrap.scrollLeft = panScrollStart.left - dx;
+      canvasWrap.scrollTop = panScrollStart.top - dy;
+      return;
+    }
+
+    const {x,y} = getPointerCm(e);
+
+    if(dragMode === "draw" && drawingShape){
+      if(drawingShape.lockSize){
+        const dw = drawingShape.__defW, dh = drawingShape.__defH;
+        drawingShape.x = snapVal(x - dw/2);
+        drawingShape.y = snapVal(y - dh/2);
+        drawingShape.w = dw; drawingShape.h = dh;
+      } else if(drawingShape.squareLock){
+        const sx = dragStart.x, sy = dragStart.y;
+        const ex = snapVal(x), ey = snapVal(y);
+        const dxv = ex-sx, dyv = ey-sy;
+        const size = Math.max(Math.abs(dxv), Math.abs(dyv), 1);
+        drawingShape.x = dxv>=0 ? sx : sx-size;
+        drawingShape.y = dyv>=0 ? sy : sy-size;
+        drawingShape.w = size; drawingShape.h = size;
+      } else {
+        const sx = dragStart.x, sy = dragStart.y;
+        const ex = snapVal(x), ey = snapVal(y);
+        drawingShape.x = Math.min(sx,ex);
+        drawingShape.y = Math.min(sy,ey);
+        drawingShape.w = Math.max(1, Math.abs(ex-sx));
+        drawingShape.h = Math.max(1, Math.abs(ey-sy));
+      }
+      render(drawingShape);
+    } else if(dragMode === "move"){
+      const s = getSelected();
+      if(s){
+        s.x = snapVal(dragOrigShape.x + (x-dragStart.x));
+        s.y = snapVal(dragOrigShape.y + (y-dragStart.y));
+        render();
+        updateQuickBar();
+      }
+    } else if(dragMode === "resize"){
+      const s = getSelected();
+      if(!s) return;
+      let {x:ox,y:oy,w:ow,h:oh} = dragOrigShape;
+      const cx = snapVal(x), cy = snapVal(y);
+      if(s.squareLock){
+        const anchorX = dragHandle.includes("w") ? ox+ow : ox;
+        const anchorY = dragHandle.includes("n") ? oy+oh : oy;
+        const size = Math.max(Math.abs(cx-anchorX), Math.abs(cy-anchorY), state.snapSize);
+        s.x = cx>=anchorX ? anchorX : anchorX-size;
+        s.y = cy>=anchorY ? anchorY : anchorY-size;
+        s.w = size; s.h = size;
+      } else {
+        let nx=ox, ny=oy, nw=ow, nh=oh;
+        if(dragHandle.includes("n")){ nh = (oy+oh) - cy; ny = cy; }
+        if(dragHandle.includes("s")){ nh = cy - oy; }
+        if(dragHandle.includes("w")){ nw = (ox+ow) - cx; nx = cx; }
+        if(dragHandle.includes("e")){ nw = cx - ox; }
+        if(nw < state.snapSize) nw = state.snapSize;
+        if(nh < state.snapSize) nh = state.snapSize;
+        s.x = nx; s.y = ny; s.w = nw; s.h = nh;
+      }
+      render();
+      updateQuickBar();
+    }
+  });
+
+  window.addEventListener("pointerup", (e)=>{
+    activePointers.delete(e.pointerId);
+    if(activePointers.size < 2){ pinchStartDist = null; pinchStartPxPerCm = null; pinchStartContentPoint = null; }
+    if(activePointers.size >= 1){
+      // one finger still down after a pinch ends - don't also run single-finger finalize logic below
+      return;
+    }
+    if(dragMode === "pan"){
+      if(!panMoved) selectShape(pendingSelectId);
+      dragMode = null; panPointerStart = null; panScrollStart = null; pendingSelectId = null;
+      return;
+    }
+    if(dragMode === "draw" && drawingShape){
+      if(drawingShape.lockSize){
+        // always fixed standard size, centered on the point (drag ignored)
+        const dw = drawingShape.__defW, dh = drawingShape.__defH;
+        const cx = drawingShape.x + drawingShape.w/2;
+        const cy = drawingShape.y + drawingShape.h/2;
+        drawingShape.x = snapVal(cx - dw/2);
+        drawingShape.y = snapVal(cy - dh/2);
+        drawingShape.w = dw; drawingShape.h = dh;
+      } else if(drawingShape.w <= 2 && drawingShape.h <= 2){
+        // treat as simple tap -> use default preset size, centered at tap point
+        const dw = drawingShape.__defW, dh = drawingShape.__defH;
+        drawingShape.x = snapVal(drawingShape.x - dw/2);
+        drawingShape.y = snapVal(drawingShape.y - dh/2);
+        drawingShape.w = dw; drawingShape.h = dh;
+      }
+      delete drawingShape.__defW; delete drawingShape.__defH;
+      state.shapes.push(drawingShape);
+      selectShape(drawingShape.id);
+      drawingShape = null;
+      setTool("select");
+      pushHistory();
+      showToast("객체가 추가되었습니다.");
+    } else if(dragMode === "move" || dragMode === "resize"){
+      pushHistory();
+    }
+    dragMode = null; dragHandle = null; dragStart = null; dragOrigShape = null;
+    render();
+  });
+
+  // OS-interrupted touches (e.g. an incoming call) still need to release their pointer
+  // so a stuck finger doesn't leave pinch/pan state stranded.
+  window.addEventListener("pointercancel", (e)=>{
+    activePointers.delete(e.pointerId);
+    if(activePointers.size < 2){ pinchStartDist = null; pinchStartPxPerCm = null; pinchStartContentPoint = null; }
+    if(activePointers.size === 0){
+      dragMode = null; dragHandle = null; dragStart = null; dragOrigShape = null; drawingShape = null;
+      panPointerStart = null; panScrollStart = null; pendingSelectId = null;
+      render();
+    }
+  });
+
+  // double-tap (or double-click with a mouse/trackpad) to rename inline
+  canvas.addEventListener("dblclick", (e)=>{
+    const {x,y} = getPointerCm(e);
+    const hit = hitTest(x,y);
+    if(hit){
+      const val = prompt("라벨을 입력하세요:", hit.label || "");
+      if(val !== null){ hit.label = val; render(); updateQuickBar(); pushHistory(); }
+    }
+  });
+
+  function deleteSelected(){
+    const idx = state.shapes.findIndex(s=>s.id===state.selectedId);
+    if(idx>=0){
+      state.shapes.splice(idx,1);
+      selectShape(null);
+      pushHistory();
+      showToast("삭제되었습니다.");
+    }
+  }
+
+  // ---------- Selection & property panel ----------
+  function selectShape(id){
+    state.selectedId = id;
+    render();
+    updateQuickBar();
+    if(id!==null) showQuickBar(); else hideQuickBar();
+  }
+
+  // Position/size are set by touch (drag the shape to move, drag a corner handle to
+  // resize) - this bar only carries what a drag gesture can't do: label, color,
+  // rotate/door-direction, duplicate, delete.
+  function updateQuickBar(){
+    const s = getSelected();
+    document.getElementById("selInfo").textContent = s ? `${labelForType(s.type)} #${s.id}` : "-";
+    if(!s) return; // quickBar itself is hidden via showQuickBar/hideQuickBar
+    document.getElementById("q_label").value = s.label || "";
+    document.getElementById("q_color").value = s.color;
+    document.getElementById("q_rotate").textContent = s.type==="door" ? "↻ 문향" : "↻";
+    document.getElementById("q_dims").textContent = `${Math.round(s.w)}×${Math.round(s.h)}cm · ${((s.w*s.h)/10000).toFixed(2)}㎡`;
+    document.getElementById("q_note").textContent =
+      s.locked ? "위치 고정됨" : s.lockSize ? "표준 크기 고정" : s.squareLock ? "정사각형만 가능" : "";
+  }
+  document.getElementById("q_label").addEventListener("input", e=>{
+    const s = getSelected(); if(!s) return;
+    s.label = e.target.value; render();
+  });
+  document.getElementById("q_label").addEventListener("change", ()=>pushHistory());
+  document.getElementById("q_color").addEventListener("input", e=>{
+    const s = getSelected(); if(!s) return;
+    s.color = e.target.value; render();
+  });
+  document.getElementById("q_color").addEventListener("change", ()=>pushHistory());
+  document.getElementById("q_rotate").addEventListener("click", ()=>{
+    const s = getSelected(); if(!s) return;
+    if(s.type==="door"){
+      s.doorOrient = ((s.doorOrient||0)+1) % DOOR_ORIENTATIONS.length;
+    } else {
+      const w=s.w, h=s.h; s.w=h; s.h=w;
+    }
+    render(); updateQuickBar(); pushHistory();
+  });
+  document.getElementById("q_dup").addEventListener("click", ()=>{
+    const s = getSelected(); if(!s) return;
+    const copy = Object.assign({}, s, {id: nextId++, x: s.x+state.snapSize, y: s.y+state.snapSize, locked:false});
+    state.shapes.push(copy);
+    selectShape(copy.id);
+    pushHistory();
+  });
+  document.getElementById("q_del").addEventListener("click", deleteSelected);
+
+  function labelForType(type){
+    if(type==="wall") return "벽";
+    if(type==="room") return "공간(구역)";
+    if(type==="text") return "텍스트";
+    const f = FURNITURE_TYPES.find(x=>x.type===type);
+    return f ? f.label.replace(/^\S+\s/,"") : type;
+  }
+  function escapeHtml(str){
+    return str.replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  }
+  function round1(n){ return Math.round(n*10)/10; }
+
+  // ---------- Rendering ----------
+  function render(previewShape){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    drawGrid();
+    state.shapes.forEach(s=> drawShape(s, s.id===state.selectedId));
+    if(previewShape) drawShape(previewShape, true, true);
+    updateStats();
+  }
+
+  function drawGrid(){
+    const minorCm = state.snapSize>0? state.snapSize : 10;
+    const majorCm = 100;
+    ctx.save();
+    // logical x-lines (the shop's long axis) are rotated 90° -> drawn as horizontal lines
+    for(let x=0; x<=state.canvasCmW; x+=minorCm){
+      const py = toPx(x);
+      ctx.strokeStyle = (x % majorCm === 0) ? getCss('--grid-major') : getCss('--grid-minor');
+      ctx.lineWidth = (x % majorCm === 0) ? 1 : 0.5;
+      ctx.beginPath(); ctx.moveTo(0,py); ctx.lineTo(canvas.width, py); ctx.stroke();
+    }
+    // logical y-lines (the shop's short axis) are rotated 90° -> drawn as vertical lines
+    for(let y=0; y<=state.canvasCmH; y+=minorCm){
+      const px = toPx(state.canvasCmH - y);
+      ctx.strokeStyle = (y % majorCm === 0) ? getCss('--grid-major') : getCss('--grid-minor');
+      ctx.lineWidth = (y % majorCm === 0) ? 1 : 0.5;
+      ctx.beginPath(); ctx.moveTo(px,0); ctx.lineTo(px, canvas.height); ctx.stroke();
+    }
+    // meter labels
+    ctx.fillStyle = "#5a616b"; ctx.font = "10px sans-serif";
+    for(let x=0; x<=state.canvasCmW; x+=majorCm){
+      ctx.fillText((x/100)+"m", 2, toPx(x)+10);
+    }
+    for(let y=0; y<=state.canvasCmH; y+=majorCm){
+      ctx.fillText((y/100)+"m", toPx(state.canvasCmH-y)+2, 10);
+    }
+    ctx.restore();
+  }
+  function getCss(varName){
+    return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+  }
+
+  function drawShape(s, selected, isPreview){
+    const box = rotateBox(s.x, s.y, s.w, s.h);
+    const x=toPx(box.x), y=toPx(box.y), w=toPx(box.w), h=toPx(box.h);
+    ctx.save();
+    if(s.type==="room"){
+      ctx.strokeStyle = s.color; ctx.lineWidth = 2;
+      ctx.setLineDash([]);
+      ctx.strokeRect(x,y,w,h);
+      ctx.fillStyle = hexAlpha(s.color, 0.08);
+      ctx.fillRect(x,y,w,h);
+    } else if(s.type==="wall"){
+      drawBrickWall(x, y, w, h, s.color);
+    } else if(s.type==="text"){
+      ctx.fillStyle = s.color;
+      ctx.font = "14px sans-serif";
+      ctx.textBaseline = "top";
+      ctx.fillText(s.label||"텍스트", x, y);
+    } else if(s.type==="door"){
+      drawDoorSymbol(x, y, w, h, s.doorOrient||0, s.color);
+    } else if(s.type==="aircon"){
+      ctx.fillStyle = hexAlpha(s.color, 0.35);
+      ctx.strokeStyle = s.color; ctx.lineWidth = 1.5;
+      roundRect(ctx, x, y, w, h, 4);
+      ctx.fill(); ctx.stroke();
+      ctx.beginPath();
+      for(let i=1;i<4;i++){
+        const ly = y + (h*i/4);
+        ctx.moveTo(x+4, ly); ctx.lineTo(x+w-4, ly);
+      }
+      ctx.strokeStyle = hexAlpha(s.color, 0.8); ctx.lineWidth = 1;
+      ctx.stroke();
+    } else if(s.type==="pillar"){
+      ctx.fillStyle = hexAlpha(s.color, 0.6);
+      ctx.strokeStyle = s.color; ctx.lineWidth = 1.5;
+      ctx.fillRect(x,y,w,h);
+      ctx.strokeRect(x,y,w,h);
+      ctx.beginPath();
+      ctx.moveTo(x,y); ctx.lineTo(x+w,y+h);
+      ctx.moveTo(x+w,y); ctx.lineTo(x,y+h);
+      ctx.stroke();
+    } else if(s.type==="window"){
+      ctx.strokeStyle = s.color; ctx.lineWidth=3;
+      ctx.strokeRect(x,y,w,h);
+      ctx.beginPath(); ctx.moveTo(x,y+h/2); ctx.lineTo(x+w,y+h/2); ctx.stroke();
+    } else {
+      // generic furniture
+      ctx.fillStyle = hexAlpha(s.color, 0.35);
+      ctx.strokeStyle = s.color; ctx.lineWidth = 1.5;
+      roundRect(ctx, x, y, w, h, Math.min(8, w/4, h/4));
+      ctx.fill(); ctx.stroke();
+    }
+
+    // label - tiny fixtures (switch/outlet) show a bigger icon glyph instead of text,
+    // since the descriptive Korean name doesn't fit their real-world size and just
+    // makes them harder to see and grab.
+    if(s.iconOnly && s.icon){
+      ctx.font = "16px sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(s.icon, x+w/2, y+h/2);
+      ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
+    } else if(s.type!=="text" && s.label){
+      ctx.fillStyle = "#e7e9ec";
+      ctx.font = "11px sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline="middle";
+      ctx.fillText(s.label, x+w/2, y+h/2);
+      ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
+    }
+
+    // dimensions
+    if(state.showDim && s.type!=="text" && !isPreview){
+      drawDimText(x,y,w,h,s);
+    }
+    if(isPreview){ drawDimText(x,y,w,h,s); }
+
+    ctx.restore();
+
+    if(selected && !isPreview){
+      drawSelection(s);
+    }
+  }
+
+  function drawDimText(x,y,w,h,s){
+    ctx.fillStyle = "#ffd479";
+    ctx.font = "10px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(`${Math.round(s.w)}cm`, x+w/2, y-4);
+    ctx.save();
+    ctx.translate(x-4, y+h/2);
+    ctx.rotate(-Math.PI/2);
+    ctx.fillText(`${Math.round(s.h)}cm`, 0, 0);
+    ctx.restore();
+    ctx.textAlign = "left";
+  }
+
+  function drawSelection(s){
+    const box = rotateBox(s.x, s.y, s.w, s.h);
+    const x=toPx(box.x), y=toPx(box.y), w=toPx(box.w), h=toPx(box.h);
+    ctx.save();
+    ctx.strokeStyle = "#4f8cff";
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([5,3]);
+    ctx.strokeRect(x-2,y-2,w+4,h+4);
+    ctx.setLineDash([]);
+    if(!s.lockSize && !s.locked){
+      const handles = getHandles(s);
+      ctx.fillStyle = "#4f8cff";
+      for(const key in handles){
+        const hp = rotatePoint(handles[key].x, handles[key].y);
+        const hx = toPx(hp.x), hy = toPx(hp.y);
+        ctx.fillRect(hx-HANDLE_SIZE/2, hy-HANDLE_SIZE/2, HANDLE_SIZE, HANDLE_SIZE);
+      }
+    }
+    ctx.restore();
+  }
+
+  function roundRect(ctx,x,y,w,h,r){
+    r = Math.max(0, r);
+    ctx.beginPath();
+    ctx.moveTo(x+r,y);
+    ctx.arcTo(x+w,y,x+w,y+h,r);
+    ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r);
+    ctx.arcTo(x,y,x+w,y,r);
+    ctx.closePath();
+  }
+  function hexAlpha(hex, alpha){
+    const c = hex.replace('#','');
+    const bigint = parseInt(c.length===3 ? c.split('').map(ch=>ch+ch).join('') : c, 16);
+    const r=(bigint>>16)&255, g=(bigint>>8)&255, b=bigint&255;
+    return `rgba(${r},${g},${b},${alpha})`;
+  }
+
+  // Gray wall fill with a running-bond brick pattern, oriented along the wall's long axis.
+  function drawBrickWall(x, y, w, h, color){
+    ctx.save();
+    ctx.fillStyle = color;
+    ctx.fillRect(x, y, w, h);
+    ctx.beginPath();
+    ctx.rect(x, y, w, h);
+    ctx.clip();
+    ctx.strokeStyle = "rgba(0,0,0,0.35)";
+    ctx.lineWidth = 1;
+    const brickLen = Math.max(toPx(19), 6);
+    const brickThick = Math.max(toPx(9), 4);
+    if(w >= h){
+      // horizontal wall: brick courses stacked top-to-bottom, bricks run left-to-right
+      let row = 0;
+      for(let yy=y; yy<y+h; yy+=brickThick){
+        const rowH = Math.min(brickThick, y+h-yy);
+        ctx.beginPath(); ctx.moveTo(x, yy); ctx.lineTo(x+w, yy); ctx.stroke();
+        const offset = (row % 2 === 0) ? 0 : brickLen/2;
+        for(let xx=x-brickLen+offset; xx<x+w; xx+=brickLen){
+          ctx.beginPath(); ctx.moveTo(xx, yy); ctx.lineTo(xx, yy+rowH); ctx.stroke();
+        }
+        row++;
+      }
+    } else {
+      // vertical wall: brick courses stacked left-to-right, bricks run top-to-bottom
+      let col = 0;
+      for(let xx=x; xx<x+w; xx+=brickThick){
+        const colW = Math.min(brickThick, x+w-xx);
+        ctx.beginPath(); ctx.moveTo(xx, y); ctx.lineTo(xx, y+h); ctx.stroke();
+        const offset = (col % 2 === 0) ? 0 : brickLen/2;
+        for(let yy=y-brickLen+offset; yy<y+h; yy+=brickLen){
+          ctx.beginPath(); ctx.moveTo(xx, yy); ctx.lineTo(xx+colW, yy); ctx.stroke();
+        }
+        col++;
+      }
+    }
+    ctx.restore();
+  }
+
+  // 8 possible door orientations: every (hinge corner, wall edge) combination,
+  // so a door can be mounted on any of the 4 box edges with the hinge on either end.
+  const DOOR_ORIENTATIONS = [
+    {hinge:"sw", closed:"se", open:"nw"}, // wall=bottom, hinge left
+    {hinge:"se", closed:"sw", open:"ne"}, // wall=bottom, hinge right
+    {hinge:"nw", closed:"ne", open:"sw"}, // wall=top, hinge left
+    {hinge:"ne", closed:"nw", open:"se"}, // wall=top, hinge right
+    {hinge:"nw", closed:"sw", open:"ne"}, // wall=left, hinge top
+    {hinge:"sw", closed:"nw", open:"se"}, // wall=left, hinge bottom
+    {hinge:"ne", closed:"se", open:"nw"}, // wall=right, hinge top
+    {hinge:"se", closed:"ne", open:"sw"}, // wall=right, hinge bottom
+  ];
+
+  // Standard 2D-plan hinged door symbol: door leaf line + 90° swing arc.
+  // orient selects which box edge is the wall and which corner is the hinge.
+  function drawDoorSymbol(x, y, w, h, orient, color){
+    const corners = { nw:{x:x,y:y}, ne:{x:x+w,y:y}, sw:{x:x,y:y+h}, se:{x:x+w,y:y+h} };
+    const o = DOOR_ORIENTATIONS[orient] || DOOR_ORIENTATIONS[0];
+    const hingePt = corners[o.hinge];
+    const closedPt = corners[o.closed];
+    const openPt = corners[o.open];
+    const radius = Math.max(w,h);
+    const a1 = Math.atan2(closedPt.y-hingePt.y, closedPt.x-hingePt.x);
+    const a2 = Math.atan2(openPt.y-hingePt.y, openPt.x-hingePt.x);
+    let diff = a2 - a1;
+    while(diff <= -Math.PI) diff += Math.PI*2;
+    while(diff > Math.PI) diff -= Math.PI*2;
+    const anticlockwise = diff < 0;
+
+    ctx.strokeStyle = color; ctx.lineWidth = 2;
+    // wall opening (door frame width)
+    ctx.setLineDash([4,3]);
+    ctx.beginPath(); ctx.moveTo(hingePt.x,hingePt.y); ctx.lineTo(closedPt.x,closedPt.y); ctx.stroke();
+    ctx.setLineDash([]);
+    // door leaf, drawn open (perpendicular to the wall)
+    ctx.beginPath(); ctx.moveTo(hingePt.x,hingePt.y); ctx.lineTo(openPt.x,openPt.y); ctx.stroke();
+    // 90° swing arc
+    ctx.beginPath();
+    ctx.arc(hingePt.x, hingePt.y, radius, a1, a2, anticlockwise);
+    ctx.stroke();
+  }
+
+  function updateStats(){
+    document.getElementById("shapeCount").textContent = state.shapes.length;
+    const roomArea = state.shapes.filter(s=>s.type==="room")
+      .reduce((sum,s)=> sum + (s.w*s.h)/10000, 0);
+    document.getElementById("totalArea").textContent = roomArea.toFixed(2);
+  }
+
+  // ---------- History (undo/redo) ----------
+  // Same JSON shape as the desktop tool (index.html) so files/localStorage are interchangeable.
+  function snapshot(){
+    return JSON.stringify({shapes: state.shapes, canvasCmW: state.canvasCmW, canvasCmH: state.canvasCmH});
+  }
+  function pushHistory(){
+    history = history.slice(0, historyIndex+1);
+    history.push(snapshot());
+    historyIndex = history.length-1;
+    if(history.length > 100){ history.shift(); historyIndex--; }
+  }
+  function restoreSnapshot(json){
+    const data = JSON.parse(json);
+    state.shapes = data.shapes;
+    state.canvasCmW = clampCanvasW(data.canvasCmW||MAX_CANVAS_W_CM);
+    state.canvasCmH = clampCanvasH(data.canvasCmH||MAX_CANVAS_H_CM);
+    document.getElementById("canvasW").value = state.canvasCmW;
+    document.getElementById("canvasH").value = state.canvasCmH;
+    nextId = Math.max(1, ...state.shapes.map(s=>s.id+1), nextId);
+    selectShape(null);
+    resizeCanvas();
+  }
+  function undo(){
+    if(historyIndex>0){ historyIndex--; restoreSnapshot(history[historyIndex]); showToast("실행취소"); }
+  }
+  function redo(){
+    if(historyIndex < history.length-1){ historyIndex++; restoreSnapshot(history[historyIndex]); showToast("다시실행"); }
+  }
+  document.getElementById("undoBtn").addEventListener("click", undo);
+  document.getElementById("redoBtn").addEventListener("click", redo);
+
+  // ---------- Save / Load / Export ----------
+  // Same Supabase slug as shop-desktop.html: both share the same saved floor plan.
+  const FLOORPLAN_SLUG = "shop";
+  document.getElementById("saveLocal").addEventListener("click", ()=>{
+    fetch("/api/floorplan", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ slug: FLOORPLAN_SLUG, data: JSON.parse(snapshot()) }),
+    })
+      .then(res=>{ if(!res.ok) throw new Error("save failed"); showToast("저장되었습니다."); })
+      .catch(()=> showToast("저장에 실패했습니다. 다시 시도해주세요."));
+  });
+  document.getElementById("exportJson").addEventListener("click", ()=>{
+    const blob = new Blob([snapshot()], {type:"application/json"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "floorplan.json"; a.click();
+    URL.revokeObjectURL(url);
+  });
+  const fileInput = document.getElementById("fileInput");
+  document.getElementById("importJson").addEventListener("click", ()=> fileInput.click());
+  fileInput.addEventListener("change", (e)=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = ()=>{
+      try{
+        restoreSnapshot(reader.result);
+        pushHistory();
+        showToast("JSON 파일을 불러왔습니다.");
+        closeDrawer();
+      }catch(err){ alert("올바르지 않은 파일입니다."); }
+    };
+    reader.readAsText(file);
+    fileInput.value = "";
+  });
+  document.getElementById("exportPng").addEventListener("click", ()=>{
+    const bak = state.selectedId;
+    selectShape(null);
+    const url = canvas.toDataURL("image/png");
+    const a = document.createElement("a");
+    a.href = url; a.download = "floorplan.png"; a.click();
+    selectShape(bak);
+  });
+  document.getElementById("clearAll").addEventListener("click", ()=>{
+    if(!confirm("모든 객체를 삭제하시겠습니까?")) return;
+    state.shapes = [];
+    selectShape(null);
+    pushHistory();
+    closeDrawer();
+  });
+
+  // ---------- Toast ----------
+  let toastTimer = null;
+  function showToast(msg){
+    const el = document.getElementById("toast");
+    el.textContent = msg;
+    el.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(()=> el.classList.remove("show"), 1600);
+  }
+
+  // ---------- Init ----------
+  async function init(){
+    resizeCanvas();
+    // load from Supabase if present, else seed with an example room
+    try{
+      const res = await fetch(`/api/floorplan?slug=${FLOORPLAN_SLUG}`);
+      const json = await res.json();
+      if(json.data){
+        restoreSnapshot(JSON.stringify(json.data));
+      } else {
+        state.shapes.push(makeShape("room", 50, 50, 1140, 380, {label:"매장 홀", locked:true}));
+        state.shapes.push(makeShape("counter", 400, 60, 120, 60, {label:"카운터"}));
+        render();
+      }
+    } catch(e){
+      showToast("불러오기에 실패했습니다. 빈 화면에서 시작합니다.");
+      state.shapes.push(makeShape("room", 50, 50, 1140, 380, {label:"매장 홀", locked:true}));
+      state.shapes.push(makeShape("counter", 400, 60, 120, 60, {label:"카운터"}));
+      render();
+    }
+    pushHistory();
+    render();
+  }
+  init();
+})();
+</script>
+</body>
+</html>
