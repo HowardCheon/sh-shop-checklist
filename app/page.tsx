@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import Link from 'next/link'
 import { sections, totalItems, type ChecklistItem, type ChecklistSection } from '@/lib/checklist-data'
 import DetailSheet from '@/components/DetailSheet'
 
@@ -250,6 +251,18 @@ export default function Home() {
           <button onClick={resetAll} className="text-xs text-gray-400 underline underline-offset-2 active:text-gray-600">
             체크 초기화
           </button>
+        </div>
+
+        <div className="flex justify-center gap-4 pt-1">
+          <Link href="/floorplan/shop-desktop.html" className="text-xs text-gray-400 underline underline-offset-2 active:text-gray-600">
+            평면도(PC)
+          </Link>
+          <Link href="/floorplan/shop-mobile.html" className="text-xs text-gray-400 underline underline-offset-2 active:text-gray-600">
+            평면도(모바일)
+          </Link>
+          <Link href="/floorplan/hanam508b" className="text-xs text-gray-400 underline underline-offset-2 active:text-gray-600">
+            하남508B 도면
+          </Link>
         </div>
       </div>
 
