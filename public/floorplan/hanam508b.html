@@ -690,42 +690,46 @@
 
   function drawShape(s, selected, isPreview){
     const x=toPx(s.x), y=toPx(s.y), w=toPx(s.w), h=toPx(s.h);
+    // Locked shapes are the traced blueprint structure (rooms/stairwell/outline seeded
+    // on load) - render them in greyscale so anything the user adds on top (doors,
+    // furniture, new rooms) stays visually distinct in its normal color.
+    const displayColor = s.locked ? "#7a7f87" : s.color;
     ctx.save();
     if(s.type==="room"){
-      ctx.strokeStyle = s.color; ctx.lineWidth = 2;
+      ctx.strokeStyle = displayColor; ctx.lineWidth = 2;
       ctx.setLineDash([]);
       ctx.strokeRect(x,y,w,h);
-      ctx.fillStyle = hexAlpha(s.color, 0.08);
+      ctx.fillStyle = hexAlpha(displayColor, 0.08);
       ctx.fillRect(x,y,w,h);
     } else if(s.type==="stairwell"){
-      ctx.strokeStyle = s.color; ctx.lineWidth = 2;
+      ctx.strokeStyle = displayColor; ctx.lineWidth = 2;
       ctx.setLineDash([6,4]);
       ctx.strokeRect(x,y,w,h);
       ctx.setLineDash([]);
       ctx.save();
       ctx.beginPath(); ctx.rect(x,y,w,h); ctx.clip();
-      ctx.strokeStyle = hexAlpha(s.color, 0.5); ctx.lineWidth = 1;
+      ctx.strokeStyle = hexAlpha(displayColor, 0.5); ctx.lineWidth = 1;
       for(let i=-h; i<w; i+=10){
         ctx.beginPath(); ctx.moveTo(x+i, y); ctx.lineTo(x+i+h, y+h); ctx.stroke();
       }
       ctx.restore();
     } else if(s.type==="outline"){
-      ctx.strokeStyle = hexAlpha(s.color, 0.6); ctx.lineWidth = 1.5;
+      ctx.strokeStyle = hexAlpha(displayColor, 0.6); ctx.lineWidth = 1.5;
       ctx.setLineDash([8,5]);
       ctx.strokeRect(x,y,w,h);
       ctx.setLineDash([]);
     } else if(s.type==="wall"){
-      drawBrickWall(x, y, w, h, s.color);
+      drawBrickWall(x, y, w, h, displayColor);
     } else if(s.type==="text"){
-      ctx.fillStyle = s.color;
+      ctx.fillStyle = displayColor;
       ctx.font = "14px sans-serif";
       ctx.textBaseline = "top";
       ctx.fillText(s.label||"텍스트", x, y);
     } else if(s.type==="door"){
-      drawDoorSymbol(x, y, w, h, s.doorOrient||0, s.color);
+      drawDoorSymbol(x, y, w, h, s.doorOrient||0, displayColor);
     } else if(s.type==="aircon"){
-      ctx.fillStyle = hexAlpha(s.color, 0.35);
-      ctx.strokeStyle = s.color; ctx.lineWidth = 1.5;
+      ctx.fillStyle = hexAlpha(displayColor, 0.35);
+      ctx.strokeStyle = displayColor; ctx.lineWidth = 1.5;
       roundRect(ctx, x, y, w, h, 4);
       ctx.fill(); ctx.stroke();
       ctx.beginPath();
@@ -733,11 +737,11 @@
         const ly = y + (h*i/4);
         ctx.moveTo(x+4, ly); ctx.lineTo(x+w-4, ly);
       }
-      ctx.strokeStyle = hexAlpha(s.color, 0.8); ctx.lineWidth = 1;
+      ctx.strokeStyle = hexAlpha(displayColor, 0.8); ctx.lineWidth = 1;
       ctx.stroke();
     } else if(s.type==="pillar"){
-      ctx.fillStyle = hexAlpha(s.color, 0.6);
-      ctx.strokeStyle = s.color; ctx.lineWidth = 1.5;
+      ctx.fillStyle = hexAlpha(displayColor, 0.6);
+      ctx.strokeStyle = displayColor; ctx.lineWidth = 1.5;
       ctx.fillRect(x,y,w,h);
       ctx.strokeRect(x,y,w,h);
       ctx.beginPath();
@@ -745,13 +749,13 @@
       ctx.moveTo(x+w,y); ctx.lineTo(x,y+h);
       ctx.stroke();
     } else if(s.type==="window"){
-      ctx.strokeStyle = s.color; ctx.lineWidth=3;
+      ctx.strokeStyle = displayColor; ctx.lineWidth=3;
       ctx.strokeRect(x,y,w,h);
       ctx.beginPath(); ctx.moveTo(x,y+h/2); ctx.lineTo(x+w,y+h/2); ctx.stroke();
     } else {
       // generic furniture
-      ctx.fillStyle = hexAlpha(s.color, 0.35);
-      ctx.strokeStyle = s.color; ctx.lineWidth = 1.5;
+      ctx.fillStyle = hexAlpha(displayColor, 0.35);
+      ctx.strokeStyle = displayColor; ctx.lineWidth = 1.5;
       roundRect(ctx, x, y, w, h, Math.min(8, w/4, h/4));
       ctx.fill(); ctx.stroke();
     }
@@ -771,7 +775,7 @@
       ctx.fillText(s.label, x+w/2, y+h/2);
       ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
     } else if(s.type==="outline" && s.label){
-      ctx.fillStyle = hexAlpha(s.color, 0.8);
+      ctx.fillStyle = hexAlpha(displayColor, 0.8);
       ctx.font = "10px sans-serif";
       ctx.textAlign = "left"; ctx.textBaseline = "top";
       ctx.fillText(s.label, x+4, y+4);
