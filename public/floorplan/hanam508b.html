@@ -1004,6 +1004,15 @@
   document.getElementById("exportPng").addEventListener("click", ()=>{
     const bak = state.selectedId;
     selectShape(null);
+    // canvas pixels are transparent where nothing was drawn (the dark background
+    // you see on screen is just the <canvas> element's CSS background) - fill that
+    // in behind the existing drawing so the exported PNG matches what's on screen
+    // instead of showing white/transparent on viewers that don't support alpha.
+    ctx.save();
+    ctx.globalCompositeOperation = "destination-over";
+    ctx.fillStyle = "#181b1f";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.restore();
     const url = canvas.toDataURL("image/png");
     const a = document.createElement("a");
     a.href = url; a.download = `hanam508b-floorplan-${FLOOR_LABELS[state.floor]}.png`; a.click();
