@@ -199,7 +199,7 @@
     {type:"shelf", label:"🗄 진열대", w:100, h:40, color:"#c9b04b"},
     {type:"fridge", label:"🧊 냉장고", w:70, h:70, color:"#4bafc9"},
     {type:"sink", label:"🚰 세면대", w:60, h:60, color:"#4b9ec9"},
-    {type:"door", label:"🚪 문", w:90, h:90, color:"#8a5a2b", squareLock:true},
+    {type:"door", label:"🚪 문", w:90, h:20, color:"#8a5a2b"},
     {type:"plant", label:"🌿 화분", w:40, h:40, color:"#4bc964"},
     {type:"aircon", label:"❄ 에어컨", w:80, h:20, color:"#7fd4e8"},
     {type:"pillar", label:"◼ 기둥", w:40, h:40, color:"#6b6f76"},
@@ -553,10 +553,10 @@
       <div class="prop-row"><label>색상</label><input type="color" id="p_color" value="${s.color}"></div>
       <div class="prop-row"><label>면적</label><div>${((s.w*s.h)/10000).toFixed(2)} ㎡</div></div>
       ${s.lockSize ? `<div style="font-size:11px;color:var(--sub);margin:-4px 0 8px;">표준 크기로 고정된 항목입니다.</div>` : ""}
-      ${s.squareLock ? `<div style="font-size:11px;color:var(--sub);margin:-4px 0 8px;">여닫이문은 정사각형(가로=세로)만 가능합니다.</div>` : ""}
+      ${s.squareLock ? `<div style="font-size:11px;color:var(--sub);margin:-4px 0 8px;">정사각형(가로=세로)만 가능합니다.</div>` : ""}
       ${s.locked ? `<div style="font-size:11px;color:var(--sub);margin:-4px 0 8px;">위치가 고정된 항목입니다. (마우스로 이동/리사이즈 불가)</div>` : ""}
       <div class="prop-actions">
-        <button id="p_rotate">${s.type==="door" ? "↻ 여닫이 방향" : "↻ 90° 회전"}</button>
+        <button id="p_rotate">${s.type==="door" ? "↻ 미닫이 방향" : "↻ 90° 회전"}</button>
         <button id="p_dup">⧉ 복제</button>
         <button id="p_del" class="danger">🗑 삭제</button>
       </div>
@@ -819,46 +819,62 @@
     ctx.restore();
   }
 
-  // 8 possible door orientations: every (hinge corner, wall edge) combination,
-  // so a door can be mounted on any of the 4 box edges with the hinge on either end.
+  // 8 possible door placements: the door can sit on any of the 4 box edges, and
+  // its leaf can slide open toward either end of the opening.
   const DOOR_ORIENTATIONS = [
-    {hinge:"sw", closed:"se", open:"nw"}, // wall=bottom, hinge left
-    {hinge:"se", closed:"sw", open:"ne"}, // wall=bottom, hinge right
-    {hinge:"nw", closed:"ne", open:"sw"}, // wall=top, hinge left
-    {hinge:"ne", closed:"nw", open:"se"}, // wall=top, hinge right
-    {hinge:"nw", closed:"sw", open:"ne"}, // wall=left, hinge top
-    {hinge:"sw", closed:"nw", open:"se"}, // wall=left, hinge bottom
-    {hinge:"ne", closed:"se", open:"nw"}, // wall=right, hinge top
-    {hinge:"se", closed:"ne", open:"sw"}, // wall=right, hinge bottom
+    {wall:"bottom", slide:-1}, {wall:"bottom", slide:1},
+    {wall:"top",    slide:-1}, {wall:"top",    slide:1},
+    {wall:"left",   slide:-1}, {wall:"left",   slide:1},
+    {wall:"right",  slide:-1}, {wall:"right",  slide:1},
   ];
 
-  // Standard 2D-plan hinged door symbol: door leaf line + 90° swing arc.
-  // orient selects which box edge is the wall and which corner is the hinge.
+  // Standard 2D-plan single sliding door (외미닫이) symbol: wall opening with jambs,
+  // one door leaf drawn closed across the opening, and an arrow showing which way
+  // the leaf slides open. orient selects the wall edge and the slide direction.
   function drawDoorSymbol(x, y, w, h, orient, color){
-    const corners = { nw:{x:x,y:y}, ne:{x:x+w,y:y}, sw:{x:x,y:y+h}, se:{x:x+w,y:y+h} };
     const o = DOOR_ORIENTATIONS[orient] || DOOR_ORIENTATIONS[0];
-    const hingePt = corners[o.hinge];
-    const closedPt = corners[o.closed];
-    const openPt = corners[o.open];
-    const radius = Math.max(w,h);
-    const a1 = Math.atan2(closedPt.y-hingePt.y, closedPt.x-hingePt.x);
-    const a2 = Math.atan2(openPt.y-hingePt.y, openPt.x-hingePt.x);
-    let diff = a2 - a1;
-    while(diff <= -Math.PI) diff += Math.PI*2;
-    while(diff > Math.PI) diff -= Math.PI*2;
-    const anticlockwise = diff < 0;
+    ctx.save();
+    // Draw in a canonical frame regardless of which edge the door is mounted on:
+    // the opening runs along u = 0..L on the v = 0 line, the box interior is at v > 0.
+    let L, D;
+    if(o.wall==="bottom"){ L=w; D=h; ctx.translate(x, y+h); ctx.transform(1,0,0,-1,0,0); }
+    else if(o.wall==="top"){ L=w; D=h; ctx.translate(x, y); }
+    else if(o.wall==="left"){ L=h; D=w; ctx.translate(x, y); ctx.transform(0,1,1,0,0,0); }
+    else { L=h; D=w; ctx.translate(x+w, y); ctx.transform(0,1,-1,0,0,0); }
 
+    // keep the symbol door-shaped even in a deep (nearly square) box
+    const depth = Math.min(D, L*0.5);
+    const jambLen = Math.max(3, depth*0.5);
+    const leafV = depth*0.24;                  // leaf centre line, just off the wall
+    const leafT = Math.max(1.5, depth*0.2);    // leaf thickness
+    const arrowV = depth*0.72;
+
+    // wall opening
     ctx.strokeStyle = color; ctx.lineWidth = 2;
-    // wall opening (door frame width)
     ctx.setLineDash([4,3]);
-    ctx.beginPath(); ctx.moveTo(hingePt.x,hingePt.y); ctx.lineTo(closedPt.x,closedPt.y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(L, 0); ctx.stroke();
     ctx.setLineDash([]);
-    // door leaf, drawn open (perpendicular to the wall)
-    ctx.beginPath(); ctx.moveTo(hingePt.x,hingePt.y); ctx.lineTo(openPt.x,openPt.y); ctx.stroke();
-    // 90° swing arc
+    // door leaf, drawn closed across the opening
+    ctx.fillStyle = hexAlpha(color, 0.35);
+    ctx.lineWidth = 1.5;
+    ctx.fillRect(0, leafV-leafT/2, L, leafT);
+    ctx.strokeRect(0, leafV-leafT/2, L, leafT);
+    // jamb ticks at both ends - drawn over the leaf so they stay readable
+    ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.arc(hingePt.x, hingePt.y, radius, a1, a2, anticlockwise);
+    ctx.moveTo(0, 0); ctx.lineTo(0, jambLen);
+    ctx.moveTo(L, 0); ctx.lineTo(L, jambLen);
     ctx.stroke();
+    // slide direction arrow
+    const mid = L/2, reach = L*0.3;
+    const tip = mid + o.slide*reach, tail = mid - o.slide*reach;
+    const head = Math.min(Math.max(3, depth*0.22), reach);
+    ctx.beginPath();
+    ctx.moveTo(tail, arrowV); ctx.lineTo(tip, arrowV);
+    ctx.moveTo(tip, arrowV); ctx.lineTo(tip - o.slide*head, arrowV - head*0.55);
+    ctx.moveTo(tip, arrowV); ctx.lineTo(tip - o.slide*head, arrowV + head*0.55);
+    ctx.stroke();
+    ctx.restore();
   }
 
   function updateStats(){
@@ -881,6 +897,8 @@
   function restoreSnapshot(json){
     const data = JSON.parse(json);
     state.shapes = data.shapes;
+    // 여닫이문 시절 저장본은 정사각형 고정이 걸려 있다 - 미닫이는 폭/두께가 자유로우니 풀어준다
+    state.shapes.forEach(s=>{ if(s.type==="door") s.squareLock = false; });
     state.canvasCmW = clampCanvasW(data.canvasCmW||MAX_CANVAS_W_CM);
     state.canvasCmH = clampCanvasH(data.canvasCmH||MAX_CANVAS_H_CM);
     document.getElementById("canvasW").value = state.canvasCmW;
