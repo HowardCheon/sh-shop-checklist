@@ -108,6 +108,14 @@
     <button id="undoBtn" title="Ctrl+Z">↶ 실행취소</button>
     <button id="redoBtn" title="Ctrl+Y">↷ 다시실행</button>
     <div class="sep"></div>
+    <div class="field">
+      <label>버전</label>
+      <select id="versionSelect">
+        <option value="1">ver1</option>
+        <option value="2">ver2</option>
+        <option value="3">ver3</option>
+      </select>
+    </div>
     <button id="saveLocal">💾 저장</button>
     <button id="exportJson">⬇ JSON 내보내기</button>
     <button id="importJson">⬆ JSON 가져오기</button>
@@ -891,15 +899,49 @@
   document.getElementById("redoBtn").addEventListener("click", redo);
 
   // ---------- Save / Load / Export ----------
-  const FLOORPLAN_SLUG = "shop";
+  // 평면도는 ver1~ver3 세 벌을 따로 보관한다. ver1은 버전 기능이 생기기 전부터 쓰던
+  // slug "shop"을 그대로 이어받으므로 기존 저장본이 ver1으로 열린다.
+  const VERSION_COUNT = 3;
+  const VERSION_STORAGE_KEY = "shopFloorplanVersion";
+  const versionSelect = document.getElementById("versionSelect");
+  let currentVersion = readStoredVersion();
+  let savedSnapshot = null; // 마지막으로 저장하거나 불러온 시점의 스냅샷
+
+  function slugForVersion(v){ return v === 1 ? "shop" : `shop-ver${v}`; }
+  function readStoredVersion(){
+    const v = parseInt(localStorage.getItem(VERSION_STORAGE_KEY), 10);
+    return v >= 1 && v <= VERSION_COUNT ? v : 1;
+  }
+  function hasUnsavedChanges(){
+    return savedSnapshot !== null && snapshot() !== savedSnapshot;
+  }
+
   document.getElementById("saveLocal").addEventListener("click", ()=>{
+    const version = currentVersion;
+    const body = snapshot();
     fetch("/api/floorplan", {
       method: "POST",
       headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({ slug: FLOORPLAN_SLUG, data: JSON.parse(snapshot()) }),
+      body: JSON.stringify({ slug: slugForVersion(version), data: JSON.parse(body) }),
     })
-      .then(res=>{ if(!res.ok) throw new Error("save failed"); showToast("저장되었습니다."); })
+      .then(res=>{
+        if(!res.ok) throw new Error("save failed");
+        if(version === currentVersion) savedSnapshot = body;
+        showToast(`ver${version}에 저장되었습니다.`);
+      })
       .catch(()=> showToast("저장에 실패했습니다. 다시 시도해주세요."));
+  });
+  versionSelect.addEventListener("change", async ()=>{
+    const next = parseInt(versionSelect.value, 10);
+    if(next === currentVersion) return;
+    if(hasUnsavedChanges() && !confirm(`ver${currentVersion}에 저장하지 않은 변경이 있습니다.\n저장하지 않고 ver${next}(으)로 이동할까요?`)){
+      versionSelect.value = String(currentVersion);
+      return;
+    }
+    currentVersion = next;
+    localStorage.setItem(VERSION_STORAGE_KEY, String(currentVersion));
+    await loadVersion(currentVersion);
+    showToast(`ver${currentVersion}을(를) 불러왔습니다.`);
   });
   document.getElementById("exportJson").addEventListener("click", ()=>{
     const blob = new Blob([snapshot()], {type:"application/json"});
@@ -959,28 +1001,44 @@
   }
 
   // ---------- Init ----------
-  async function init(){
+  function seedExample(){
+    // 저장본이 없는 버전은 캔버스 크기까지 기본값으로 되돌려서 시작한다
+    state.canvasCmW = MAX_CANVAS_W_CM;
+    state.canvasCmH = MAX_CANVAS_H_CM;
+    document.getElementById("canvasW").value = state.canvasCmW;
+    document.getElementById("canvasH").value = state.canvasCmH;
+    state.shapes = [];
+    selectShape(null);
+    state.shapes.push(makeShape("room", 50, 50, 1140, 380, {label:"매장 홀", locked:true}));
+    state.shapes.push(makeShape("counter", 400, 60, 120, 60, {label:"카운터"}));
     resizeCanvas();
-    // load from Supabase if present, else seed with an example room
+  }
+  // load the given version from Supabase if present, else seed with an example room
+  async function loadVersion(version){
     try{
-      const res = await fetch(`/api/floorplan?slug=${FLOORPLAN_SLUG}`);
+      const res = await fetch(`/api/floorplan?slug=${slugForVersion(version)}`);
       if(!res.ok) throw new Error("load failed");
       const json = await res.json();
       if(json.data){
         restoreSnapshot(JSON.stringify(json.data));
       } else {
-        state.shapes.push(makeShape("room", 50, 50, 1140, 380, {label:"매장 홀", locked:true}));
-        state.shapes.push(makeShape("counter", 400, 60, 120, 60, {label:"카운터"}));
-        render();
+        seedExample();
       }
     } catch(e){
       showToast("불러오기에 실패했습니다. 빈 화면에서 시작합니다.");
-      state.shapes.push(makeShape("room", 50, 50, 1140, 380, {label:"매장 홀", locked:true}));
-      state.shapes.push(makeShape("counter", 400, 60, 120, 60, {label:"카운터"}));
-      render();
+      seedExample();
     }
+    // 버전을 바꾸면 실행취소 이력도 새 버전 기준으로 다시 시작한다
+    history = [];
+    historyIndex = -1;
     pushHistory();
+    savedSnapshot = snapshot();
     render();
+  }
+  async function init(){
+    resizeCanvas();
+    versionSelect.value = String(currentVersion);
+    await loadVersion(currentVersion);
   }
   init();
 })();
