@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useCallback } from 'react'
+import BrandHeader from '@/components/BrandHeader'
 
 interface Reservation {
   id: number
@@ -398,22 +399,12 @@ export default function ReservationsClient({ initialReservations, initialDate, p
 
   return (
     <div className="min-h-screen">
-      <div className="bg-white/60 backdrop-blur border-b border-brand-100 px-4 pt-6 pb-3">
-        {/* 브랜드 헤더 (매장 윈도우 시트 디자인) */}
-        <div className="flex items-center gap-3">
-          <img src="/onflow-logo.png" alt="온:플로우 로고" className="w-12 h-12 object-contain shrink-0" />
-          <div className="flex-1 min-w-0">
-            <h1 className="font-serif text-2xl font-extrabold text-brand-600 leading-none tracking-wide">온:플로우</h1>
-            <p className="font-serif text-[10px] text-brand-500 tracking-[0.35em] mt-1">AESTHETICS</p>
-          </div>
-          <div className="flex bg-brand-50 border border-brand-100 rounded-full p-0.5">
-            <button onClick={() => setView('day')} className="px-3.5 py-1 rounded-full text-xs font-600 transition-colors" style={view==='day'?{background:'#bc7659',color:'#fff'}:{color:'#a5624a'}}>일</button>
-            <button onClick={switchToMonth}        className="px-3.5 py-1 rounded-full text-xs font-600 transition-colors" style={view==='month'?{background:'#bc7659',color:'#fff'}:{color:'#a5624a'}}>월</button>
-          </div>
+      <BrandHeader right={
+        <div className="flex bg-brand-50 border border-brand-100 rounded-full p-0.5">
+          <button onClick={() => setView('day')} className="px-3.5 py-1 rounded-full text-xs font-600 transition-colors" style={view==='day'?{background:'#bc7659',color:'#fff'}:{color:'#a5624a'}}>일</button>
+          <button onClick={switchToMonth}        className="px-3.5 py-1 rounded-full text-xs font-600 transition-colors" style={view==='month'?{background:'#bc7659',color:'#fff'}:{color:'#a5624a'}}>월</button>
         </div>
-
-        <div className="brand-divider my-3"><span className="text-[8px]">◆</span></div>
-
+      }>
         {view === 'day' ? (
           <div className="flex items-center gap-3">
             <button onClick={() => moveDay(-1)} className="w-8 h-8 rounded-full border border-brand-200 flex items-center justify-center text-brand-500">‹</button>
@@ -435,7 +426,7 @@ export default function ReservationsClient({ initialReservations, initialDate, p
         <p className="font-serif text-[10px] text-brand-400 text-center tracking-wider mt-2">
           MON–FRI 10:00–20:00 · SAT 10:00–17:00 · SUN off
         </p>
-      </div>
+      </BrandHeader>
 
       <div className="px-4 py-4">
         {view === 'day' ? (

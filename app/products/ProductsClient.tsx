@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import BrandHeader, { PageTitle } from '@/components/BrandHeader'
 
 export interface Product {
   id: number
@@ -12,6 +13,7 @@ export interface Product {
 }
 
 const CAT = { color: '#bc7659', light: '#faf4f0', border: '#f3e6de' }
+const FAB = 'linear-gradient(135deg, #bc7659, #cb9175)'
 const EMPTY_FORM = { name: '', price: '', duration_min: '', description: '' }
 
 function formatPrice(n: number) { return n.toLocaleString() + '원' }
@@ -31,24 +33,24 @@ function ProductCard({ product, onToggle, onEdit, onDelete }: {
 
   return (
     <div
-      className={`bg-white rounded-2xl border p-4 shadow-sm transition-opacity ${!product.is_active ? 'opacity-50' : ''}`}
-      style={{ borderColor: CAT.border }}
+      className={`bg-white/85 rounded-2xl border border-l-4 p-4 shadow-sm transition-opacity ${!product.is_active ? 'opacity-50' : ''}`}
+      style={{ borderColor: CAT.border, borderLeftColor: product.is_active ? CAT.color : '#d1d5db' }}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="font-700 text-gray-800 text-sm">{product.name}</span>
+            <span className="font-serif font-bold text-brand-800 text-base">{product.name}</span>
             {!product.is_active && (
               <span className="text-xs text-gray-400 bg-gray-100 rounded-full px-2 py-0.5">비활성</span>
             )}
           </div>
           <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-            <span className="text-base font-800" style={{ color: CAT.color }}>{formatPrice(product.price)}</span>
+            <span className="font-serif text-base font-extrabold" style={{ color: CAT.color }}>{formatPrice(product.price)}</span>
             {product.duration_min && (
-              <span className="text-xs text-gray-400 bg-gray-50 rounded-full px-2 py-0.5">⏱ {product.duration_min}분</span>
+              <span className="text-xs text-brand-600 bg-brand-50 rounded-full px-2 py-0.5">⏱ {product.duration_min}분</span>
             )}
             {hr && (
-              <span className="text-xs text-gray-400 bg-gray-50 rounded-full px-2 py-0.5">시간당 {hr.toLocaleString()}원</span>
+              <span className="text-xs text-brand-600 bg-brand-50 rounded-full px-2 py-0.5">시간당 {hr.toLocaleString()}원</span>
             )}
           </div>
           {product.description && (
@@ -67,14 +69,14 @@ function ProductCard({ product, onToggle, onEdit, onDelete }: {
             />
           </button>
           <div className="flex gap-1">
-            <button onClick={() => onEdit(product)} className="w-7 h-7 rounded-lg bg-gray-50 flex items-center justify-center text-sm hover:bg-brand-50 transition-colors">✏️</button>
+            <button onClick={() => onEdit(product)} className="w-7 h-7 rounded-full bg-brand-50 flex items-center justify-center text-sm hover:bg-brand-50 transition-colors">✏️</button>
             {confirmDel ? (
               <button onClick={() => onDelete(product.id)} className="h-7 px-2 rounded-lg bg-red-500 text-white text-xs font-bold">삭제</button>
             ) : (
               <button
                 onClick={() => setConfirmDel(true)}
                 onBlur={() => setTimeout(() => setConfirmDel(false), 200)}
-                className="w-7 h-7 rounded-lg bg-gray-50 flex items-center justify-center text-sm hover:bg-red-50 transition-colors"
+                className="w-7 h-7 rounded-full bg-brand-50 flex items-center justify-center text-sm hover:bg-red-50 transition-colors"
               >🗑️</button>
             )}
           </div>
@@ -127,7 +129,7 @@ function ProductForm({ initial, onSave, onCancel }: {
           onClick={handleSave}
           disabled={saving || !form.name.trim() || form.price === ''}
           className="flex-1 py-2.5 rounded-xl text-sm font-700 text-white disabled:opacity-40"
-          style={{ background: 'linear-gradient(135deg, #bc7659, #cb9175)' }}
+          style={{ background: FAB }}
         >
           {saving ? '저장 중...' : '저장'}
         </button>
@@ -220,11 +222,10 @@ export default function ProductsClient({ initialProducts }: { initialProducts: P
   })
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="bg-white border-b border-gray-100 shadow-sm px-4 pt-5 pb-4">
-        <h1 className="text-xl font-900 text-gray-900">시술 메뉴</h1>
-        <p className="text-xs text-gray-400 mt-0.5">메뉴별 가격과 소요 시간을 관리하세요</p>
-      </div>
+    <div className="min-h-screen">
+      <BrandHeader>
+        <PageTitle title="시술 메뉴" sub={`운영 중 ${products.filter(p => p.is_active).length}개 · 전체 ${products.length}개`} />
+      </BrandHeader>
 
       <div className="px-4 py-4 space-y-3">
         {products.map(p =>
@@ -243,9 +244,9 @@ export default function ProductsClient({ initialProducts }: { initialProducts: P
 
         {products.length === 0 && !showForm && (
           <div className="text-center py-14">
-            <p className="text-4xl mb-3">✨</p>
-            <p className="text-sm font-600 text-gray-500">등록된 시술 메뉴가 없습니다</p>
-            <p className="text-xs text-gray-400 mt-1">+ 버튼으로 추가해 보세요</p>
+            <img src="/onflow-logo.png" alt="" className="w-20 h-20 object-contain mx-auto mb-4 opacity-40" />
+            <p className="font-serif text-base font-bold text-brand-600">등록된 시술 메뉴가 없습니다</p>
+            <p className="text-xs text-brand-400 mt-1">+ 버튼으로 추가해 보세요</p>
           </div>
         )}
 
@@ -256,7 +257,7 @@ export default function ProductsClient({ initialProducts }: { initialProducts: P
         <button
           onClick={() => setShowForm(true)}
           className="fixed right-5 bottom-14 w-14 h-14 rounded-full shadow-lg flex items-center justify-center text-white text-2xl transition-transform active:scale-90 z-30"
-          style={{ background: 'linear-gradient(135deg, #bc7659, #cb9175)' }}
+          style={{ background: FAB }}
         >+</button>
       )}
     </div>

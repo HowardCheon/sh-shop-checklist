@@ -2,7 +2,10 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import BrandHeader, { PageTitle } from '@/components/BrandHeader'
 import { calcStats, fmtDate, type Customer } from './customer-utils'
+
+const FAB = 'linear-gradient(135deg, #bc7659, #cb9175)'
 
 /* ── 고객 추가 폼 ── */
 function CustomerForm({ onSave, onCancel }: {
@@ -20,7 +23,7 @@ function CustomerForm({ onSave, onCancel }: {
       <div className="absolute inset-0 bg-black/30" onClick={onCancel} />
       <div className="relative bg-white rounded-t-3xl px-4 pt-5 pb-8 space-y-3">
         <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-2" />
-        <h2 className="text-base font-700 text-gray-900">고객 추가</h2>
+        <h2 className="font-serif text-lg font-extrabold text-brand-700">고객 추가</h2>
         <div>
           <label className={lbl}>고객명 <span className="text-red-400">*</span></label>
           <input className={inp} placeholder="홍길동" value={form.name} onChange={set('name')} />
@@ -35,7 +38,7 @@ function CustomerForm({ onSave, onCancel }: {
         </div>
         <div className="flex gap-2 pt-1">
           <button onClick={onCancel} className="flex-1 py-2.5 rounded-xl text-sm font-600 text-gray-500 bg-gray-100">취소</button>
-          <button onClick={() => { if (form.name.trim()) onSave(form) }} disabled={!form.name.trim()} className="flex-1 py-2.5 rounded-xl text-sm font-700 text-white disabled:opacity-40" style={{ background: 'linear-gradient(135deg, #a5624a, #bc7659)' }}>
+          <button onClick={() => { if (form.name.trim()) onSave(form) }} disabled={!form.name.trim()} className="flex-1 py-2.5 rounded-xl text-sm font-700 text-white disabled:opacity-40" style={{ background: FAB }}>
             저장
           </button>
         </div>
@@ -91,41 +94,41 @@ export default function CustomersClient({ initialCustomers }: { initialCustomers
   ]
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="bg-white border-b border-gray-100 shadow-sm px-4 pt-5 pb-3">
-        <h1 className="text-xl font-900 text-gray-900 mb-3">고객 관리</h1>
+    <div className="min-h-screen">
+      <BrandHeader>
+        <PageTitle title="고객 관리" sub={`등록 고객 ${customers.length}명`} />
         <input
-          className="w-full text-sm rounded-xl border border-gray-200 px-3 py-2 outline-none bg-gray-50 focus:border-brand-300 focus:bg-white transition-colors mb-2"
+          className="w-full text-sm rounded-full border border-brand-200 px-4 py-2 mt-3 outline-none bg-white/80 placeholder:text-brand-300 focus:border-brand-400 focus:bg-white transition-colors mb-2"
           placeholder="이름 또는 연락처 검색..."
           value={search}
           onChange={e => setSearch(e.target.value)}
         />
-        <div className="flex gap-1.5">
+        <div className="flex gap-1.5 justify-center">
           {SORTS.map(s => (
-            <button key={s.key} onClick={() => setSortKey(s.key)} className="px-3 py-1 rounded-lg text-xs font-600 transition-colors"
-              style={sortKey === s.key ? { background: '#a5624a', color: '#fff' } : { background: '#f3f4f6', color: '#9ca3af' }}>
+            <button key={s.key} onClick={() => setSortKey(s.key)} className="px-3 py-1 rounded-full text-xs font-600 border transition-colors"
+              style={sortKey === s.key ? { background: '#bc7659', borderColor: '#bc7659', color: '#fff' } : { background: '#faf4f0', borderColor: '#f3e6de', color: '#a5624a' }}>
               {s.label}
             </button>
           ))}
         </div>
-      </div>
+      </BrandHeader>
 
       <div className="px-4 py-4 space-y-2">
         {sorted.length === 0 ? (
           <div className="text-center py-14">
-            <p className="text-4xl mb-3">👤</p>
-            <p className="text-sm font-600 text-gray-500">{search ? '검색 결과가 없습니다' : '등록된 고객이 없습니다'}</p>
+            <img src="/onflow-logo.png" alt="" className="w-20 h-20 object-contain mx-auto mb-4 opacity-40" />
+            <p className="font-serif text-base font-bold text-brand-600">{search ? '검색 결과가 없습니다' : '등록된 고객이 없습니다'}</p>
           </div>
         ) : sorted.map(c => {
           const s = calcStats(c)
           return (
-            <Link key={c.id} href={`/customers/${c.id}`} aria-disabled={c.id < 0} onClick={e => { if (c.id < 0) e.preventDefault() }} className="w-full text-left bg-white rounded-2xl border border-gray-100 px-4 py-3 shadow-sm flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-700 text-white shrink-0" style={{ background: 'linear-gradient(135deg, #a5624a, #bc7659)' }}>
+            <Link key={c.id} href={`/customers/${c.id}`} aria-disabled={c.id < 0} onClick={e => { if (c.id < 0) e.preventDefault() }} className="w-full text-left bg-white/85 rounded-2xl border border-brand-100 px-4 py-3 shadow-sm flex items-center gap-3 active:bg-brand-50 transition-colors">
+              <div className="w-10 h-10 rounded-full flex items-center justify-center font-serif text-base font-bold text-brand-600 bg-brand-50 border border-brand-200 shrink-0">
                 {c.name[0]}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-sm font-700 text-gray-800">{c.name}</span>
+                  <span className="font-serif text-base font-bold text-brand-800">{c.name}</span>
                   {c.phone && <span className="text-xs text-gray-400">{c.phone}</span>}
                 </div>
                 <div className="flex gap-2 mt-0.5">
@@ -144,7 +147,7 @@ export default function CustomersClient({ initialCustomers }: { initialCustomers
       </div>
 
       {!showForm && (
-        <button onClick={() => setShowForm(true)} className="fixed right-5 bottom-14 w-14 h-14 rounded-full shadow-lg flex items-center justify-center text-white text-2xl transition-transform active:scale-90 z-30" style={{ background: 'linear-gradient(135deg, #a5624a, #bc7659)' }}>+</button>
+        <button onClick={() => setShowForm(true)} className="fixed right-5 bottom-14 w-14 h-14 rounded-full shadow-lg flex items-center justify-center text-white text-2xl transition-transform active:scale-90 z-30" style={{ background: FAB }}>+</button>
       )}
 
       {showForm && <CustomerForm onSave={handleAdd} onCancel={() => setShowForm(false)} />}
