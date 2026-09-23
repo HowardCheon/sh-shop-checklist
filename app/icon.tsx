@@ -12,12 +12,11 @@ export default function Icon() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: 'linear-gradient(135deg, #f43f5e, #a855f7)',
+        background: 'linear-gradient(135deg, #cb9175, #a5624a)',
         borderRadius: '8px',
-        fontSize: '20px',
       }}
     >
-      🌸
+      <div style={{ width: '12px', height: '12px', background: '#fff', transform: 'rotate(45deg)' }} />
     </div>,
     { ...size }
   )

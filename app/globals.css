@@ -1,12 +1,28 @@
 @import "tailwindcss";
 
 :root {
-  --bg: #fdf2f8;
+  --bg: #efeeea;
+}
+
+/* 온:플로우 브랜드 컬러 (매장 윈도우 시트의 테라코타/로즈골드 톤) */
+@theme {
+  --color-brand-50: #faf4f0;
+  --color-brand-100: #f3e6de;
+  --color-brand-200: #e8cdbe;
+  --color-brand-300: #d9ae97;
+  --color-brand-400: #cb9175;
+  --color-brand-500: #bc7659;
+  --color-brand-600: #a5624a;
+  --color-brand-700: #87503d;
+  --color-brand-800: #6b4033;
+  --color-brand-900: #4f3027;
+  --color-stone-bg: #efeeea;
+  --font-serif: var(--font-serif-kr), serif;
 }
 
 body {
   background-color: var(--bg);
-  color: #1f2937;
+  color: #3a3431;
   -webkit-text-size-adjust: 100%;
 }
 
@@ -50,4 +66,20 @@ body {
 
 .confetti-piece {
   animation: confettiFall 1.2s ease-out forwards;
+}
+
+/* ◆ 장식 구분선 */
+.brand-divider {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-brand-400);
+}
+.brand-divider::before,
+.brand-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: currentColor;
+  opacity: 0.7;
 }

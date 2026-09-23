@@ -6,46 +6,13 @@ import { usePathname } from 'next/navigation'
 const TABS = [
   {
     href: '/',
-    label: '체크리스트',
-    icon: (active: boolean) => (
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={active ? 'url(#g1)' : '#9ca3af'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <defs>
-          <linearGradient id="g1" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#f472b6" />
-            <stop offset="100%" stopColor="#a855f7" />
-          </linearGradient>
-        </defs>
-        <path d="M9 11l3 3L22 4" />
-        <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
-      </svg>
-    ),
-  },
-  {
-    href: '/products',
-    label: '시술메뉴',
-    icon: (active: boolean) => (
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={active ? 'url(#g2)' : '#9ca3af'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <defs>
-          <linearGradient id="g2" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#f472b6" />
-            <stop offset="100%" stopColor="#a855f7" />
-          </linearGradient>
-        </defs>
-        <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" />
-        <line x1="3" y1="6" x2="21" y2="6" />
-        <path d="M16 10a4 4 0 01-8 0" />
-      </svg>
-    ),
-  },
-  {
-    href: '/reservations',
     label: '예약',
     icon: (active: boolean) => (
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={active ? 'url(#g3)' : '#9ca3af'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <defs>
           <linearGradient id="g3" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#f472b6" />
-            <stop offset="100%" stopColor="#a855f7" />
+            <stop offset="0%" stopColor="#cb9175" />
+            <stop offset="100%" stopColor="#a5624a" />
           </linearGradient>
         </defs>
         <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
@@ -56,18 +23,51 @@ const TABS = [
     ),
   },
   {
+    href: '/products',
+    label: '시술메뉴',
+    icon: (active: boolean) => (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={active ? 'url(#g2)' : '#9ca3af'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <defs>
+          <linearGradient id="g2" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#cb9175" />
+            <stop offset="100%" stopColor="#a5624a" />
+          </linearGradient>
+        </defs>
+        <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" />
+        <line x1="3" y1="6" x2="21" y2="6" />
+        <path d="M16 10a4 4 0 01-8 0" />
+      </svg>
+    ),
+  },
+  {
     href: '/customers',
     label: '고객',
     icon: (active: boolean) => (
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={active ? 'url(#g4)' : '#9ca3af'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <defs>
           <linearGradient id="g4" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#f472b6" />
-            <stop offset="100%" stopColor="#a855f7" />
+            <stop offset="0%" stopColor="#cb9175" />
+            <stop offset="100%" stopColor="#a5624a" />
           </linearGradient>
         </defs>
         <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
         <circle cx="12" cy="7" r="4" />
+      </svg>
+    ),
+  },
+  {
+    href: '/checklist',
+    label: '체크리스트',
+    icon: (active: boolean) => (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={active ? 'url(#g1)' : '#9ca3af'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <defs>
+          <linearGradient id="g1" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#cb9175" />
+            <stop offset="100%" stopColor="#a5624a" />
+          </linearGradient>
+        </defs>
+        <path d="M9 11l3 3L22 4" />
+        <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
       </svg>
     ),
   },
@@ -78,7 +78,7 @@ export default function BottomNav() {
   if (pathname.startsWith('/floorplan')) return null
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-100 shadow-lg">
+    <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white/90 backdrop-blur border-t border-brand-100">
       <div className="flex">
         {TABS.map(tab => {
           const active = tab.href === '/' ? pathname === '/' : pathname.startsWith(tab.href)
@@ -91,7 +91,7 @@ export default function BottomNav() {
               {tab.icon(active)}
               <span
                 className="text-[10px] font-600 transition-colors"
-                style={{ color: active ? '#a855f7' : '#9ca3af' }}
+                style={{ color: active ? '#a5624a' : '#a8a29e' }}
               >
                 {tab.label}
               </span>

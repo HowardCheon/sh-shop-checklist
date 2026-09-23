@@ -37,8 +37,8 @@ const fmtTime = (iso: string) => new Date(iso).toLocaleTimeString('ko-KR', { hou
 const fmtPrice = (n: number) => n.toLocaleString() + '원'
 
 const STATUS_LABEL = { scheduled: '예약', completed: '완료', cancelled: '취소' } as const
-const STATUS_COLOR = { scheduled: '#ec4899', completed: '#22c55e', cancelled: '#9ca3af' } as const
-const STATUS_BG    = { scheduled: '#fdf2f8', completed: '#f0fdf4', cancelled: '#f9fafb' } as const
+const STATUS_COLOR = { scheduled: '#bc7659', completed: '#7c9a7e', cancelled: '#9ca3af' } as const
+const STATUS_BG    = { scheduled: '#faf4f0', completed: '#f0f4ef', cancelled: '#f9fafb' } as const
 
 const EMPTY_FORM = { customer_name: '', customer_phone: '', product_id: '', date: '', time: '', price: '', memo: '' }
 
@@ -75,7 +75,7 @@ function ReservationForm({ initial, products, date, onSave, onCancel, editId }: 
     if (e) { setErr(e); setSaving(false) }
   }
 
-  const inp = "w-full text-sm rounded-xl border border-gray-200 px-3 py-2.5 outline-none bg-gray-50 focus:bg-white focus:border-pink-300 transition-colors"
+  const inp = "w-full text-sm rounded-xl border border-gray-200 px-3 py-2.5 outline-none bg-gray-50 focus:bg-white focus:border-brand-300 transition-colors"
   const lbl = "block text-xs font-600 text-gray-500 mb-1"
 
   return (
@@ -83,7 +83,7 @@ function ReservationForm({ initial, products, date, onSave, onCancel, editId }: 
       <div className="absolute inset-0 bg-black/30" onClick={onCancel} />
       <div className="relative bg-white rounded-t-3xl px-4 pt-5 pb-8 space-y-3 max-h-[90vh] overflow-y-auto">
         <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-2" />
-        <h2 className="text-base font-700 text-gray-900">{editId ? '예약 수정' : '예약 추가'}</h2>
+        <h2 className="font-serif text-lg font-extrabold text-brand-700">{editId ? '예약 수정' : '예약 추가'}</h2>
         {err && <p className="text-xs text-red-500 bg-red-50 rounded-lg px-3 py-2">{err}</p>}
         <div className="grid grid-cols-2 gap-2">
           <div className="col-span-2">
@@ -121,13 +121,13 @@ function ReservationForm({ initial, products, date, onSave, onCancel, editId }: 
           </div>
         </div>
         {selectedProduct?.duration_min && (
-          <p className="text-xs text-pink-400 bg-pink-50 rounded-lg px-3 py-2">
+          <p className="text-xs text-brand-400 bg-brand-50 rounded-lg px-3 py-2">
             ⏱ 소요시간 {selectedProduct.duration_min}분 + 앞뒤 10분 버퍼 포함 예약 블록이 잡힙니다
           </p>
         )}
         <div className="flex gap-2 pt-1">
           <button onClick={onCancel} className="flex-1 py-2.5 rounded-xl text-sm font-600 text-gray-500 bg-gray-100">취소</button>
-          <button onClick={handleSave} disabled={saving} className="flex-1 py-2.5 rounded-xl text-sm font-700 text-white disabled:opacity-40" style={{ background: 'linear-gradient(135deg, #ec4899, #f472b6)' }}>
+          <button onClick={handleSave} disabled={saving} className="flex-1 py-2.5 rounded-xl text-sm font-700 text-white disabled:opacity-40" style={{ background: 'linear-gradient(135deg, #bc7659, #cb9175)' }}>
             {saving ? '저장 중...' : '저장'}
           </button>
         </div>
@@ -159,7 +159,7 @@ function ReservationDetail({ res, onClose, onStatusChange, onEdit }: {
         <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-3" />
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="text-lg font-700 text-gray-900">{res.customer_name}</h2>
+            <h2 className="font-serif text-xl font-extrabold text-brand-700">{res.customer_name}</h2>
             {res.customer_phone && <p className="text-xs text-gray-400">{res.customer_phone}</p>}
           </div>
           <span className="text-xs font-700 px-3 py-1 rounded-full" style={{ background: STATUS_BG[res.status], color: STATUS_COLOR[res.status] }}>
@@ -174,7 +174,7 @@ function ReservationDetail({ res, onClose, onStatusChange, onEdit }: {
         </div>
         {res.status === 'scheduled' && (
           <div className="flex gap-2 mb-4">
-            <button onClick={() => change('completed')} disabled={!!changing} className="flex-1 py-2.5 rounded-xl text-sm font-700 text-white" style={{ background: '#22c55e' }}>
+            <button onClick={() => change('completed')} disabled={!!changing} className="flex-1 py-2.5 rounded-xl text-sm font-700 text-white" style={{ background: '#7c9a7e' }}>
               {changing === 'completed' ? '처리 중...' : '✓ 시술 완료'}
             </button>
             <button onClick={() => change('cancelled')} disabled={!!changing} className="flex-1 py-2.5 rounded-xl text-sm font-700 text-white bg-gray-400">
@@ -183,7 +183,7 @@ function ReservationDetail({ res, onClose, onStatusChange, onEdit }: {
           </div>
         )}
         {res.status !== 'scheduled' && (
-          <button onClick={() => change('scheduled')} disabled={!!changing} className="w-full py-2.5 rounded-xl text-sm font-700 text-pink-500 border border-pink-200 mb-4">
+          <button onClick={() => change('scheduled')} disabled={!!changing} className="w-full py-2.5 rounded-xl text-sm font-700 text-brand-500 border border-brand-200 mb-4">
             예약 복원
           </button>
         )}
@@ -243,15 +243,15 @@ function MonthCalendar({ year, month, reservations, onDayClick }: {
           <div key={d} className={`text-center text-[10px] font-600 py-1 ${i===0?'text-red-400':i===6?'text-blue-400':'text-gray-400'}`}>{d}</div>
         ))}
       </div>
-      <div className="grid grid-cols-7 gap-px bg-gray-100 rounded-2xl overflow-hidden">
+      <div className="grid grid-cols-7 gap-px bg-brand-100 rounded-2xl overflow-hidden">
         {cells.map((cell, i) => {
           if (!cell) return <div key={`e-${i}`} className="bg-white min-h-[60px]" />
           const isToday = cell.date === today
           const rsvs = byDate[cell.date] ?? []
           const col = i % 7
           return (
-            <button key={cell.date} onClick={() => onDayClick(cell.date)} className="bg-white min-h-[60px] p-1 text-left hover:bg-pink-50 transition-colors">
-              <span className={`text-xs font-600 inline-flex w-5 h-5 items-center justify-center rounded-full ${isToday?'bg-pink-500 text-white':col===0?'text-red-400':col===6?'text-blue-400':'text-gray-700'}`}>
+            <button key={cell.date} onClick={() => onDayClick(cell.date)} className="bg-white min-h-[60px] p-1 text-left hover:bg-brand-50 transition-colors">
+              <span className={`text-xs font-600 inline-flex w-5 h-5 items-center justify-center rounded-full ${isToday?'bg-brand-500 text-white':col===0?'text-red-400':col===6?'text-blue-400':'text-gray-700'}`}>
                 {cell.day}
               </span>
               <div className="mt-0.5 space-y-0.5">
@@ -397,33 +397,44 @@ export default function ReservationsClient({ initialReservations, initialDate, p
   const MONTH_NAMES = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월']
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="bg-white border-b border-gray-100 shadow-sm px-4 pt-5 pb-3">
-        <div className="flex items-center justify-between mb-3">
-          <h1 className="text-xl font-900 text-gray-900">예약 관리</h1>
-          <div className="flex bg-gray-100 rounded-xl p-0.5">
-            <button onClick={() => setView('day')} className="px-3 py-1 rounded-lg text-xs font-600 transition-colors" style={view==='day'?{background:'#ec4899',color:'#fff'}:{color:'#9ca3af'}}>일</button>
-            <button onClick={switchToMonth}        className="px-3 py-1 rounded-lg text-xs font-600 transition-colors" style={view==='month'?{background:'#ec4899',color:'#fff'}:{color:'#9ca3af'}}>월</button>
+    <div className="min-h-screen">
+      <div className="bg-white/60 backdrop-blur border-b border-brand-100 px-4 pt-6 pb-3">
+        {/* 브랜드 헤더 (매장 윈도우 시트 디자인) */}
+        <div className="flex items-center gap-3">
+          <img src="/onflow-logo.png" alt="온:플로우 로고" className="w-12 h-12 object-contain shrink-0" />
+          <div className="flex-1 min-w-0">
+            <h1 className="font-serif text-2xl font-extrabold text-brand-600 leading-none tracking-wide">온:플로우</h1>
+            <p className="font-serif text-[10px] text-brand-500 tracking-[0.35em] mt-1">AESTHETICS</p>
+          </div>
+          <div className="flex bg-brand-50 border border-brand-100 rounded-full p-0.5">
+            <button onClick={() => setView('day')} className="px-3.5 py-1 rounded-full text-xs font-600 transition-colors" style={view==='day'?{background:'#bc7659',color:'#fff'}:{color:'#a5624a'}}>일</button>
+            <button onClick={switchToMonth}        className="px-3.5 py-1 rounded-full text-xs font-600 transition-colors" style={view==='month'?{background:'#bc7659',color:'#fff'}:{color:'#a5624a'}}>월</button>
           </div>
         </div>
+
+        <div className="brand-divider my-3"><span className="text-[8px]">◆</span></div>
+
         {view === 'day' ? (
           <div className="flex items-center gap-3">
-            <button onClick={() => moveDay(-1)} className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center text-gray-500">←</button>
+            <button onClick={() => moveDay(-1)} className="w-8 h-8 rounded-full border border-brand-200 flex items-center justify-center text-brand-500">‹</button>
             <div className="flex-1 text-center">
-              <span className="text-sm font-700 text-gray-800">{currentDate}</span>
-              <span className="text-xs text-gray-400 ml-1">({dateLabel})</span>
+              <span className="font-serif text-base font-bold text-brand-700">{currentDate}</span>
+              <span className="text-xs text-brand-400 ml-1">({dateLabel})</span>
             </div>
-            <button onClick={() => moveDay(1)} className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center text-gray-500">→</button>
+            <button onClick={() => moveDay(1)} className="w-8 h-8 rounded-full border border-brand-200 flex items-center justify-center text-brand-500">›</button>
           </div>
         ) : (
           <div className="flex items-center gap-3">
-            <button onClick={() => moveMonth(-1)} className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center text-gray-500">←</button>
+            <button onClick={() => moveMonth(-1)} className="w-8 h-8 rounded-full border border-brand-200 flex items-center justify-center text-brand-500">‹</button>
             <div className="flex-1 text-center">
-              <span className="text-sm font-700 text-gray-800">{currentYear}년 {MONTH_NAMES[currentMonth]}</span>
+              <span className="font-serif text-base font-bold text-brand-700">{currentYear}년 {MONTH_NAMES[currentMonth]}</span>
             </div>
-            <button onClick={() => moveMonth(1)} className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center text-gray-500">→</button>
+            <button onClick={() => moveMonth(1)} className="w-8 h-8 rounded-full border border-brand-200 flex items-center justify-center text-brand-500">›</button>
           </div>
         )}
+        <p className="font-serif text-[10px] text-brand-400 text-center tracking-wider mt-2">
+          MON–FRI 10:00–20:00 · SAT 10:00–17:00 · SUN off
+        </p>
       </div>
 
       <div className="px-4 py-4">
@@ -432,14 +443,14 @@ export default function ReservationsClient({ initialReservations, initialDate, p
             <p className="text-sm text-gray-400 text-center py-10">불러오는 중...</p>
           ) : reservations.length === 0 ? (
             <div className="text-center py-14">
-              <p className="text-4xl mb-3">📅</p>
-              <p className="text-sm font-600 text-gray-500">예약이 없습니다</p>
-              <p className="text-xs text-gray-400 mt-1">+ 버튼으로 추가해 보세요</p>
+              <img src="/onflow-logo.png" alt="" className="w-20 h-20 object-contain mx-auto mb-4 opacity-40" />
+              <p className="font-serif text-base font-bold text-brand-600">예약이 없습니다</p>
+              <p className="text-xs text-brand-400 mt-1">+ 버튼으로 추가해 보세요</p>
             </div>
           ) : (
             <div className="space-y-3">
               {reservations.map(r => (
-                <button key={r.id} onClick={() => openDetail(r)} className="w-full text-left bg-white rounded-2xl border p-4 shadow-sm" style={{ borderColor: STATUS_COLOR[r.status] + '40' }}>
+                <button key={r.id} onClick={() => openDetail(r)} className="w-full text-left bg-white/85 rounded-2xl border border-l-4 p-4 shadow-sm" style={{ borderColor: STATUS_COLOR[r.status] + '40', borderLeftColor: STATUS_COLOR[r.status] }}>
                   <div className="flex items-start justify-between">
                     <div>
                       <div className="flex items-center gap-2">
@@ -450,7 +461,7 @@ export default function ReservationsClient({ initialReservations, initialDate, p
                       {r.memo && <p className="text-xs text-gray-400 mt-0.5 truncate">{r.memo}</p>}
                     </div>
                     <div className="text-right shrink-0 ml-2">
-                      <p className="text-sm font-700" style={{ color: STATUS_COLOR[r.status] }}>{fmtTime(r.start_at)}</p>
+                      <p className="font-serif text-base font-extrabold" style={{ color: STATUS_COLOR[r.status] }}>{fmtTime(r.start_at)}</p>
                       <p className="text-xs text-gray-400">~ {fmtTime(r.end_at)}</p>
                       {r.price != null && <p className="text-xs text-gray-500 mt-0.5">{fmtPrice(r.price)}</p>}
                     </div>
@@ -467,7 +478,7 @@ export default function ReservationsClient({ initialReservations, initialDate, p
       </div>
 
       {!showForm && !detailTarget && (
-        <button onClick={() => { setEditTarget(null); setShowForm(true) }} className="fixed right-5 bottom-14 w-14 h-14 rounded-full shadow-lg flex items-center justify-center text-white text-2xl transition-transform active:scale-90 z-30" style={{ background: 'linear-gradient(135deg, #ec4899, #f472b6)' }}>+</button>
+        <button onClick={() => { setEditTarget(null); setShowForm(true) }} className="fixed right-5 bottom-14 w-14 h-14 rounded-full shadow-lg flex items-center justify-center text-white text-2xl transition-transform active:scale-90 z-30" style={{ background: 'linear-gradient(135deg, #bc7659, #cb9175)' }}>+</button>
       )}
 
       {showForm && (

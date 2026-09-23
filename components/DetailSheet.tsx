@@ -195,7 +195,7 @@ export default function DetailSheet({ item, section, isChecked, currentNote, onC
                 disabled={noteSaving || !noteChanged}
                 className="px-4 py-1.5 rounded-lg text-xs font-700 text-white transition-all active:opacity-80 disabled:opacity-40"
                 style={{
-                  background: section ? `linear-gradient(135deg, ${section.checkColor}, ${section.progressColor})` : 'linear-gradient(135deg, #f43f5e, #a855f7)',
+                  background: section ? `linear-gradient(135deg, ${section.checkColor}, ${section.progressColor})` : 'linear-gradient(135deg, #cb9175, #a5624a)',
                 }}
               >
                 {noteSaving ? '저장 중...' : '저장'}
@@ -246,7 +246,7 @@ export default function DetailSheet({ item, section, isChecked, currentNote, onC
           <button
             onClick={onClose}
             className="w-full py-3.5 rounded-2xl text-sm font-700 text-white transition-opacity active:opacity-80"
-            style={{ background: section ? `linear-gradient(135deg, ${section.checkColor}, ${section.progressColor})` : 'linear-gradient(135deg, #f43f5e, #a855f7)' }}
+            style={{ background: section ? `linear-gradient(135deg, ${section.checkColor}, ${section.progressColor})` : 'linear-gradient(135deg, #cb9175, #a5624a)' }}
           >
             확인
           </button>

@@ -70,18 +70,14 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
   }))
 
   return (
-    <div className="fixed inset-0 overflow-y-auto bg-gradient-to-br from-pink-50 via-white to-purple-50 z-50">
+    <div className="fixed inset-0 overflow-y-auto bg-stone-bg z-50">
       <div className="flex flex-col items-center justify-center min-h-full py-10 px-4">
 
         {/* 로고 영역 */}
         <div className="flex flex-col items-center mb-10">
-          <div
-            className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4 shadow-md"
-            style={{ background: 'linear-gradient(135deg, #f472b6, #a855f7)' }}
-          >
-            <span className="text-3xl">🌸</span>
-          </div>
-          <h1 className="text-xl font-bold text-gray-800">피부관리샵 체크리스트</h1>
+          <img src="/onflow-logo.png" alt="온:플로우 로고" className="w-24 h-24 object-contain mb-3" />
+          <h1 className="font-serif text-2xl font-extrabold text-brand-600 tracking-wide">온:플로우</h1>
+          <p className="font-serif text-[10px] text-brand-500 tracking-[0.35em] mt-1 mb-3">AESTHETICS</p>
           <p className="text-sm text-gray-400 mt-1">PIN 번호를 입력하세요</p>
         </div>
 
@@ -94,10 +90,10 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
                 d.error
                   ? 'bg-red-400 border-red-400'
                   : d.filled
-                  ? 'border-pink-500'
+                  ? 'border-brand-500'
                   : 'border-gray-300'
               }`}
-              style={d.filled && !d.error ? { background: 'linear-gradient(135deg, #f472b6, #a855f7)' } : {}}
+              style={d.filled && !d.error ? { background: '#bc7659' } : {}}
             />
           ))}
         </div>
@@ -117,7 +113,7 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
             <button
               key={d}
               onClick={() => handleKey(d)}
-              className="h-16 rounded-2xl text-xl font-semibold text-gray-700 bg-white shadow-sm border border-gray-100 hover:bg-pink-50 hover:border-pink-200 active:scale-95 active:bg-pink-100 transition-all duration-100 cursor-pointer select-none"
+              className="h-16 rounded-2xl text-xl font-semibold text-gray-700 bg-white shadow-sm border border-gray-100 hover:bg-brand-50 hover:border-brand-200 active:scale-95 active:bg-brand-100 transition-all duration-100 cursor-pointer select-none"
             >
               {d}
             </button>
@@ -125,7 +121,7 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
           <div />
           <button
             onClick={() => handleKey('0')}
-            className="h-16 rounded-2xl text-xl font-semibold text-gray-700 bg-white shadow-sm border border-gray-100 hover:bg-pink-50 hover:border-pink-200 active:scale-95 active:bg-pink-100 transition-all duration-100 cursor-pointer select-none"
+            className="h-16 rounded-2xl text-xl font-semibold text-gray-700 bg-white shadow-sm border border-gray-100 hover:bg-brand-50 hover:border-brand-200 active:scale-95 active:bg-brand-100 transition-all duration-100 cursor-pointer select-none"
           >
             0
           </button>

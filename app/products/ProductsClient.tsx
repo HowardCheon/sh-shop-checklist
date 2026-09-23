@@ -11,7 +11,7 @@ export interface Product {
   is_active: boolean
 }
 
-const CAT = { color: '#ec4899', light: '#fdf2f8', border: '#fce7f3' }
+const CAT = { color: '#bc7659', light: '#faf4f0', border: '#f3e6de' }
 const EMPTY_FORM = { name: '', price: '', duration_min: '', description: '' }
 
 function formatPrice(n: number) { return n.toLocaleString() + '원' }
@@ -67,7 +67,7 @@ function ProductCard({ product, onToggle, onEdit, onDelete }: {
             />
           </button>
           <div className="flex gap-1">
-            <button onClick={() => onEdit(product)} className="w-7 h-7 rounded-lg bg-gray-50 flex items-center justify-center text-sm hover:bg-pink-50 transition-colors">✏️</button>
+            <button onClick={() => onEdit(product)} className="w-7 h-7 rounded-lg bg-gray-50 flex items-center justify-center text-sm hover:bg-brand-50 transition-colors">✏️</button>
             {confirmDel ? (
               <button onClick={() => onDelete(product.id)} className="h-7 px-2 rounded-lg bg-red-500 text-white text-xs font-bold">삭제</button>
             ) : (
@@ -99,10 +99,10 @@ function ProductForm({ initial, onSave, onCancel }: {
     setSaving(true)
     try { await onSave(form) } finally { setSaving(false) }
   }
-  const inp = "w-full text-sm rounded-xl border border-gray-200 px-3 py-2.5 outline-none bg-gray-50 focus:bg-white focus:border-pink-300 transition-colors"
+  const inp = "w-full text-sm rounded-xl border border-gray-200 px-3 py-2.5 outline-none bg-gray-50 focus:bg-white focus:border-brand-300 transition-colors"
   const lbl = "block text-xs font-600 text-gray-500 mb-1"
   return (
-    <div className="rounded-2xl border-2 p-4 space-y-3" style={{ borderColor: '#fce7f3', backgroundColor: CAT.light }}>
+    <div className="rounded-2xl border-2 p-4 space-y-3" style={{ borderColor: '#f3e6de', backgroundColor: CAT.light }}>
       <div>
         <label className={lbl}>메뉴명 <span className="text-red-400">*</span></label>
         <input className={inp} placeholder="예: 모공 클렌징 케어" value={form.name} onChange={set('name')} />
@@ -127,7 +127,7 @@ function ProductForm({ initial, onSave, onCancel }: {
           onClick={handleSave}
           disabled={saving || !form.name.trim() || form.price === ''}
           className="flex-1 py-2.5 rounded-xl text-sm font-700 text-white disabled:opacity-40"
-          style={{ background: 'linear-gradient(135deg, #ec4899, #f472b6)' }}
+          style={{ background: 'linear-gradient(135deg, #bc7659, #cb9175)' }}
         >
           {saving ? '저장 중...' : '저장'}
         </button>
@@ -256,7 +256,7 @@ export default function ProductsClient({ initialProducts }: { initialProducts: P
         <button
           onClick={() => setShowForm(true)}
           className="fixed right-5 bottom-14 w-14 h-14 rounded-full shadow-lg flex items-center justify-center text-white text-2xl transition-transform active:scale-90 z-30"
-          style={{ background: 'linear-gradient(135deg, #ec4899, #f472b6)' }}
+          style={{ background: 'linear-gradient(135deg, #bc7659, #cb9175)' }}
         >+</button>
       )}
     </div>
