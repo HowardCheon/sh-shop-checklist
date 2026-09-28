@@ -38,7 +38,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!updated) return NextResponse.json({ error: '잔액이 변경되었습니다. 새로고침 후 다시 시도하세요' }, { status: 409 })
 
   const description = `선불 충전 ${Number(amount).toLocaleString()}원${bonus ? ` + 보너스 ${bonus.toLocaleString()}원` : ''}${memo ? ` (${memo})` : ''}`
-  await supabase.from('sh_shop_prepaid_ledger').insert({
+  const { error: ledgerError } = await supabase.from('sh_shop_prepaid_ledger').insert({
     customer_id: customer.id,
     type: 'charge',
     cash_amount: Number(amount),
@@ -47,6 +47,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     bonus_balance_after: bonusBalance,
     memo: memo || null,
   })
+  if (ledgerError) console.error('선불 원장 기록 실패', { customerId: customer.id, amount, ledgerError })
   const { data: history } = await supabase
     .from('sh_shop_customer_history')
     .insert({

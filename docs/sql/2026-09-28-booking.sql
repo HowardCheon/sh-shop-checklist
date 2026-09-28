@@ -84,3 +84,9 @@ from (values
 ) as v(grp, name, price, member_price, duration_min, sort_order)
 where not exists (select 1 from sh_shop_products p where p.name = v.name and p.category = 'service');
 select setval('sh_shop_products_id_seq', (select max(id) from sh_shop_products));
+
+-- 기존 예약 전화번호 정규화 + 고객 연결(백필)
+update sh_shop_reservations set customer_phone = regexp_replace(customer_phone, '[^0-9]', '', 'g')
+  where customer_phone ~ '^[0-9 +()-]+$' and regexp_replace(customer_phone, '[^0-9]', '', 'g') ~ '^01[016789][0-9]{7,8}$';
+update sh_shop_reservations r set customer_id = c.id
+  from sh_shop_customers c where r.customer_id is null and r.customer_phone = c.phone;

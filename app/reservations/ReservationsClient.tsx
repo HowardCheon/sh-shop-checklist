@@ -381,7 +381,7 @@ export default function ReservationsClient({ initialReservations, initialDate, p
   /* 예약 저장 (겹침 확인 필요 → API 후 반영) */
   const handleSave = async (form: typeof EMPTY_FORM) => {
     const start_at = `${form.date}T${form.time}:00+09:00`
-    const selectedProduct = products.find(p => p.id === Number(form.product_id))
+    const selectedProduct = formProducts.find(p => p.id === Number(form.product_id))
     const payload = {
       customer_name: form.customer_name,
       customer_phone: form.customer_phone || null,
@@ -430,6 +430,11 @@ export default function ReservationsClient({ initialReservations, initialDate, p
     price: editTarget.price?.toString() ?? '',
     memo: editTarget.memo ?? '',
   } : undefined
+
+  // 수정 대상의 시술이 비활성(목록에 없음)이어도 기존 시술명/시간을 유지
+  const formProducts: Product[] = editTarget?.product_id && !products.some(p => p.id === editTarget.product_id)
+    ? [...products, { id: editTarget.product_id, name: editTarget.product_name ?? '(비활성 시술)', price: editTarget.price ?? 0, duration_min: editTarget.duration_min }]
+    : products
 
   const MONTH_NAMES = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월']
 
@@ -520,7 +525,7 @@ export default function ReservationsClient({ initialReservations, initialDate, p
       )}
 
       {showForm && (
-        <ReservationForm initial={editInitial} products={products} date={currentDate} onSave={handleSave} onCancel={() => { setShowForm(false); setEditTarget(null) }} editId={editTarget?.id} />
+        <ReservationForm initial={editInitial} products={formProducts} date={currentDate} onSave={handleSave} onCancel={() => { setShowForm(false); setEditTarget(null) }} editId={editTarget?.id} />
       )}
 
       {detailTarget && (

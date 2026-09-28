@@ -27,7 +27,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   // 시간/시술시간 변경 또는 취소 건 복원 시 겹침 재확인
   const nextStart = start_at ?? existing.start_at
   const nextMins = duration_min ?? existing.duration_min ?? 60
-  const timeChanged = (start_at && Date.parse(start_at) !== Date.parse(existing.start_at)) || nextMins !== existing.duration_min
+  const timeChanged = (start_at && Date.parse(start_at) !== Date.parse(existing.start_at)) ||
+    (duration_min != null && duration_min !== existing.duration_min)
   const restoring = status === 'scheduled' && existing.status === 'cancelled'
   if (timeChanged || restoring) {
     const times = blockTimes(nextStart, nextMins)
