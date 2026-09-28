@@ -13,7 +13,7 @@
 2. 시각 선택 → `GET /availability/programs?date=2026-10-06&time=14:00[&phone=...]` → 가능한 프로그램(소요시간, 종료시각, 가격) 표시
 3. (선택) 전화번호 입력 → `GET /customers/lookup?phone=...` → 회원 여부
 4. 예약 → `POST /reservations`
-5. 내 예약 → `GET /reservations?phone=...` → `PATCH /reservations/{id}` 또는 `POST /reservations/{id}/cancel`
+5. 내 예약 → `GET /reservations?name=...&phone=...` (변경·취소는 현재 전화로만 — 아래 참고)
 
 ## 운영 규칙
 
@@ -22,7 +22,7 @@
 - 1인 운영: 예약은 서로 겹치지 않으며, 각 예약 뒤 정리시간 20분이 자동으로 확보됨
 - 예약 가능 기간: 현재 + 2시간 이후 ~ 60일 이내
 - 전화번호당 예정 예약 최대 5건
-- 수정/취소: 예약일 **전날까지**만 가능 (당일은 매장 전화)
+- 수정/취소: **SMS 인증 도입 전까지 온라인 불가, 전화로만** (`BOOKING_ONLINE_CHANGE=true` 로 켜면 예약일 전날까지 온라인 가능)
 - 회원(선불충전금 보유) 은 회원가, 그 외 비회원가 자동 적용
 
 ## 엔드포인트
@@ -64,13 +64,13 @@
   "message": "요청사항", "status": "scheduled", "editable": true, "is_member": false }
 ```
 
-### GET /reservations?phone=
-`{ "reservations": [ 예약 객체 ... ] }` — 앞으로 남은 확정 예약만. `editable=false` 면 수정/취소 버튼 대신 매장 전화 안내.
+### GET /reservations?name=&phone=
+`{ "reservations": [ 예약 객체 ... ] }` — 이름(공백 무시)과 휴대폰 번호가 모두 일치하는 앞으로 남은 확정 예약만. 불일치면 빈 목록. `editable=false` 면 수정/취소 버튼 대신 매장 전화 안내.
 
-### PATCH /reservations/{id}
+### PATCH /reservations/{id}  (현재 비활성 → 403 CHANGE_BY_PHONE)
 요청: `{ "phone": "...", "program_id"?: 3, "date"?: "2026-10-07", "time"?: "15:00", "message"?: "..." }` → 예약 객체
 
-### POST /reservations/{id}/cancel
+### POST /reservations/{id}/cancel  (현재 비활성 → 403 CHANGE_BY_PHONE)
 요청: `{ "phone": "...", "reason"?: "일정 변경" }` → 예약 객체(`status: "cancelled"`)
 
 ## 오류
@@ -89,6 +89,7 @@
 | LIMIT_EXCEEDED | 409 | 예정 예약 5건 초과 |
 | NOT_FOUND | 404 | 예약 없음(전화번호 불일치 포함) |
 | SAME_DAY_LOCKED | 403 | 당일 변경 불가 → 매장 전화 |
+| CHANGE_BY_PHONE | 403 | 온라인 변경·취소 비활성(SMS 인증 전) → 매장 전화 |
 | INTERNAL | 500 | 일시 오류 |
 
 ## 참고

@@ -9,6 +9,12 @@ import { BUFFER_MIN, MAX_UPCOMING, businessHours, isEditable, startError } from 
 import { isValidDate, isoToKst, kstToIso } from './time'
 
 const MAX_NAME = 30
+const SHOP_TEL = '010-2475-9859'
+
+/** 고객의 온라인 변경·취소 허용 여부 — SMS 본인인증 도입 전까지는 꺼 둠(전화로만 처리) */
+function onlineChangeEnabled() {
+  return process.env.BOOKING_ONLINE_CHANGE === 'true'
+}
 const MAX_MESSAGE = 500
 
 /* ── DTO ─────────────────────────────────────────── */
@@ -43,7 +49,7 @@ function reservationDto(r: ReservationRow, now: Date) {
     price_type: r.price_type,
     message: r.memo,
     status: r.status,
-    editable: r.status === 'scheduled' && isEditable(start.date, now),
+    editable: onlineChangeEnabled() && r.status === 'scheduled' && isEditable(start.date, now),
   }
 }
 
@@ -126,6 +132,7 @@ export async function getPrograms() {
 
 /** 예약 변경 화면용 — 본인 예약(전화번호 일치)만 가용시간 계산에서 제외 */
 async function excludedId(input: { exclude?: unknown; phone?: unknown }): Promise<number | undefined> {
+  if (!onlineChangeEnabled()) return undefined
   if (input.exclude === undefined || input.exclude === null || input.exclude === '') return undefined
   const { reservation } = await loadOwnReservation(input.exclude, input)
   return reservation.id
@@ -170,11 +177,20 @@ export async function lookupCustomer(input: { phone?: unknown }) {
   }
 }
 
-export async function listReservations(input: { phone?: unknown }, now = new Date()) {
+/** 예약 조회 — 이름과 휴대폰 번호가 모두 일치하는 예약만 (불일치 시 빈 목록으로 존재 여부 비노출) */
+export async function listReservations(input: { phone?: unknown; name?: unknown }, now = new Date()) {
   const phone = verifyPhoneOwnership(input)
+  const name = cleanName(input.name)
+  const sameName = (v: string | null | undefined) => !!v && v.replace(/\s/g, '') === name.replace(/\s/g, '')
   const customer = await repo.findCustomerByPhone(phone)
   const rows = await repo.listUpcomingReservations(customer?.id ?? null, phone, now.toISOString())
-  return rows.map(r => reservationDto(r, now))
+  return rows.filter(r => sameName(r.customer_name) || sameName(customer?.name)).map(r => reservationDto(r, now))
+}
+
+function assertOnlineChange() {
+  if (!onlineChangeEnabled()) {
+    throw new BookingError('CHANGE_BY_PHONE', `예약 변경·취소는 전화(${SHOP_TEL})로 연락 주세요.`)
+  }
 }
 
 /* ── 생성 ────────────────────────────────────────── */
@@ -233,6 +249,7 @@ export async function createReservation(input: Record<string, unknown>, now = ne
 /* ── 수정 / 취소 ─────────────────────────────────── */
 
 export async function updateReservation(id: unknown, input: Record<string, unknown>, now = new Date()) {
+  assertOnlineChange()
   const { reservation: old, customer } = await loadOwnReservation(id, input)
   assertEditable(old, now)
 
@@ -291,6 +308,7 @@ export async function updateReservation(id: unknown, input: Record<string, unkno
 }
 
 export async function cancelReservation(id: unknown, input: Record<string, unknown>, now = new Date()) {
+  assertOnlineChange()
   const { reservation: old, customer } = await loadOwnReservation(id, input)
   assertEditable(old, now)
   const reason = cleanMessage(input.reason)

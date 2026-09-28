@@ -10,6 +10,7 @@ export type BookingErrorCode =
   | 'LIMIT_EXCEEDED'
   | 'NOT_FOUND'
   | 'SAME_DAY_LOCKED'
+  | 'CHANGE_BY_PHONE'
   | 'INTERNAL'
 
 const STATUS: Record<BookingErrorCode, number> = {
@@ -24,6 +25,7 @@ const STATUS: Record<BookingErrorCode, number> = {
   LIMIT_EXCEEDED: 409,
   NOT_FOUND: 404,
   SAME_DAY_LOCKED: 403,
+  CHANGE_BY_PHONE: 403,
   INTERNAL: 500,
 }
 
