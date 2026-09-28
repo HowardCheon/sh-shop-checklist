@@ -36,8 +36,11 @@
 ```json
 { "date": "2026-10-06", "closed": false, "closed_reason": null,
   "business_hours": { "open": "10:00", "close": "20:00", "lastStart": "19:30" },
-  "slots": [ { "time": "10:00", "program_count": 14 } ] }
+  "slots": [ { "time": "10:00", "program_count": 14 } ],
+  "times": [ { "time": "10:00", "available": true, "reason": null, "program_count": 14 },
+             { "time": "10:30", "available": false, "reason": "booked", "program_count": 0 } ] }
 ```
+`slots` 는 예약 가능한 시각만, `times` 는 영업시간의 모든 시각(불가 사유 `booked` 예약 마감 / `too_soon` 2시간 이내·지난 시각 / `too_far`).
 
 ### 예약 변경 화면용 옵션
 `/availability`, `/availability/programs` 에 `&exclude=<예약 id>&phone=<예약 전화번호>` 를 붙이면 그 예약 자신의 시간 블록을 제외하고 계산합니다(전화번호 불일치 시 404).

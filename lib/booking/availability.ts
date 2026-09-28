@@ -19,6 +19,27 @@ export function programsAt<T extends { duration_min: number }>(
   return programs.filter(p => fits(date, time, p.duration_min, blocks, excludeId))
 }
 
+export type TimeSlot = {
+  time: string
+  available: boolean
+  reason: 'booked' | 'too_soon' | 'too_far' | null
+  program_count: number
+}
+
+/** 그날 영업시간의 모든 시작 시각 — 예약 불가 시각도 사유와 함께 포함 (고객 화면 비활성 표시용) */
+export function timesFor(
+  date: string, programs: { duration_min: number }[], blocks: Block[], now: Date = new Date(), excludeId?: number,
+): TimeSlot[] {
+  return candidateTimes(date).map(time => {
+    const err = startError(date, time, now)
+    if (err) {
+      return { time, available: false, reason: err.code === 'TOO_FAR' ? 'too_far' : 'too_soon', program_count: 0 }
+    }
+    const count = programsAt(date, time, programs, blocks, excludeId).length
+    return { time, available: count > 0, reason: count > 0 ? null : 'booked', program_count: count }
+  })
+}
+
 export function slotsFor(
   date: string, programs: { duration_min: number }[], blocks: Block[], now: Date = new Date(), excludeId?: number,
 ): { time: string; program_count: number }[] {

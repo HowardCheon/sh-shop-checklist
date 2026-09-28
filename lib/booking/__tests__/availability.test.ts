@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { fits, programsAt, slotsFor, type Block } from '../availability'
+import { fits, programsAt, slotsFor, timesFor, type Block } from '../availability'
 import { kstToIso } from '../time'
 
 const NOW = new Date('2026-10-04T23:00:00Z') // 2026-10-05 08:00 KST
@@ -42,6 +42,17 @@ describe('availability', () => {
     const blocks = [block(5, '14:00', '15:20')]
     expect(fits(D, '14:00', 60, blocks)).toBe(false)
     expect(fits(D, '14:00', 80, blocks, 5)).toBe(true)
+  })
+  it('전체 시간표: 예약으로 막힌 시간과 지난 시간도 포함하고 사유를 표시', () => {
+    const blocks = [block(1, '10:00', '11:20')]
+    const times = timesFor(D, P, blocks, NOW)
+    expect(times).toHaveLength(20)
+    expect(times.find(t => t.time === '10:30')).toEqual({ time: '10:30', available: false, reason: 'booked', program_count: 0 })
+    expect(times.find(t => t.time === '11:30')).toMatchObject({ available: true, reason: null, program_count: 4 })
+    // 당일 08:00 기준 10:00 이전 여유 2시간 → 10:00 은 가능, 09:30 은 영업 전이라 목록에 없음
+    const todayTimes = timesFor('2026-10-05', P, [], new Date('2026-10-05T01:30:00Z')) // 10:30 KST
+    expect(todayTimes.find(t => t.time === '12:00')).toMatchObject({ available: false, reason: 'too_soon' })
+    expect(todayTimes.find(t => t.time === '12:30')).toMatchObject({ available: true })
   })
   it('일요일은 슬롯이 없다', () => {
     expect(slotsFor('2026-10-11', P, [], NOW)).toEqual([])

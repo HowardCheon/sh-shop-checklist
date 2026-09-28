@@ -1,5 +1,5 @@
 /* 외부 예약 유스케이스 */
-import { fits, programsAt, slotsFor } from './availability'
+import { fits, programsAt, timesFor as dayTimes } from './availability'
 import { BookingError } from './errors'
 import { maskName, verifyPhoneOwnership } from './phone'
 import { isMember } from './prepaid'
@@ -143,10 +143,18 @@ export async function getAvailability(dateInput: unknown, now = new Date(), opts
   const hours = businessHours(date)
   const closed = hours ? await repo.getClosedDate(date) : null
   if (!hours || closed) {
-    return { date, closed: true, closed_reason: closed?.reason ?? '정기 휴무', business_hours: hours, slots: [] }
+    return { date, closed: true, closed_reason: closed?.reason ?? '정기 휴무', business_hours: hours, slots: [], times: [] }
   }
   const [programs, blocks, exclude] = await Promise.all([repo.listPrograms(), repo.listBlocks(date), excludedId(opts)])
-  return { date, closed: false, closed_reason: null, business_hours: hours, slots: slotsFor(date, programs, blocks, now, exclude) }
+  const times = dayTimes(date, programs, blocks, now, exclude)
+  return {
+    date,
+    closed: false,
+    closed_reason: null,
+    business_hours: hours,
+    slots: times.filter(t => t.available).map(({ time, program_count }) => ({ time, program_count })),
+    times,
+  }
 }
 
 export async function getProgramsAt(input: { date?: unknown; time?: unknown; phone?: unknown; exclude?: unknown }, now = new Date()) {
