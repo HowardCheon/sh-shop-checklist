@@ -13,9 +13,19 @@ export interface Customer {
   name: string
   phone: string | null
   memo: string | null
+  prepaid_cash?: number
+  prepaid_bonus?: number
   created_at: string
   updated_at: string
   reservations?: Reservation[]
+}
+
+export interface CustomerHistory {
+  id: number
+  action: string
+  actor: 'external' | 'admin'
+  description: string | null
+  created_at: string
 }
 
 export const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' })

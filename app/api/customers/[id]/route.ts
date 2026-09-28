@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
+import { normalizePhone } from '@/lib/booking/phone'
+
+function cleanPhone(phone: unknown): string | null {
+  if (typeof phone !== 'string' || !phone.trim()) return null
+  try { return normalizePhone(phone) } catch { return phone.trim() }
+}
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -23,7 +29,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() }
   if (name !== undefined) updates.name = name.trim()
-  if (phone !== undefined) updates.phone = phone || null
+  if (phone !== undefined) updates.phone = cleanPhone(phone)
   if (memo !== undefined) updates.memo = memo || null
 
   const { data, error } = await supabase
@@ -33,6 +39,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     .select()
     .single()
 
+  if (error?.code === '23505') return NextResponse.json({ error: '이미 등록된 전화번호입니다' }, { status: 409 })
   if (error) return NextResponse.json({ error: '수정 실패' }, { status: 500 })
   return NextResponse.json(data)
 }

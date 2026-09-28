@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react'
 import BrandHeader from '@/components/BrandHeader'
+import { isoToKst, kstNow, addDays } from '@/lib/booking/time'
 
 interface Reservation {
   id: number
@@ -15,6 +16,7 @@ interface Reservation {
   end_at: string
   price: number | null
   status: 'scheduled' | 'completed' | 'cancelled'
+  source?: 'admin' | 'external'
   memo: string | null
   history?: HistoryItem[]
 }
@@ -33,8 +35,16 @@ interface Product {
   duration_min: number | null
 }
 
-const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
-const fmtTime = (iso: string) => new Date(iso).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })
+interface ClosedDate {
+  date: string
+  reason: string | null
+}
+
+// 날짜/시간은 기기 시간대와 무관하게 KST 기준으로 표시
+const kstDate = (iso: string) => isoToKst(iso).date
+const fmtTime = (iso: string) => isoToKst(iso).time
+const kstRange = (from: string, to: string) =>
+  `from=${encodeURIComponent(`${from}T00:00:00+09:00`)}&to=${encodeURIComponent(`${to}T23:59:59+09:00`)}`
 const fmtPrice = (n: number) => n.toLocaleString() + '원'
 
 const STATUS_LABEL = { scheduled: '예약', completed: '완료', cancelled: '취소' } as const
@@ -123,7 +133,7 @@ function ReservationForm({ initial, products, date, onSave, onCancel, editId }: 
         </div>
         {selectedProduct?.duration_min && (
           <p className="text-xs text-brand-400 bg-brand-50 rounded-lg px-3 py-2">
-            ⏱ 소요시간 {selectedProduct.duration_min}분 + 앞뒤 10분 버퍼 포함 예약 블록이 잡힙니다
+            ⏱ 소요시간 {selectedProduct.duration_min}분 + 정리시간 20분까지 예약 블록이 잡힙니다
           </p>
         )}
         <div className="flex gap-2 pt-1">
@@ -144,7 +154,6 @@ function ReservationDetail({ res, onClose, onStatusChange, onEdit }: {
   onEdit: (r: Reservation) => void
 }) {
   const [changing, setChanging] = useState<string | null>(null)
-  const isToday = res.start_at.slice(0, 10) === fmt(new Date())
 
   const change = async (status: string) => {
     setChanging(status)
@@ -168,7 +177,8 @@ function ReservationDetail({ res, onClose, onStatusChange, onEdit }: {
           </span>
         </div>
         <div className="space-y-2 mb-4">
-          <Row label="날짜/시간" value={`${res.start_at.slice(0,10)} ${fmtTime(res.start_at)} ~ ${fmtTime(res.end_at)}`} />
+          <Row label="날짜/시간" value={`${kstDate(res.start_at)} ${fmtTime(res.start_at)} ~ ${fmtTime(res.end_at)}`} />
+          <Row label="접수" value={res.source === 'external' ? '외부 예약' : '매장 등록'} />
           {res.product_name && <Row label="시술" value={`${res.product_name}${res.duration_min ? ` (${res.duration_min}분)` : ''}`} />}
           {res.price != null && <Row label="금액" value={fmtPrice(res.price)} />}
           {res.memo && <Row label="메모" value={res.memo} />}
@@ -193,13 +203,13 @@ function ReservationDetail({ res, onClose, onStatusChange, onEdit }: {
             ✏️ 예약 수정
           </button>
         )}
-        {isToday && res.history && res.history.length > 0 && (
+        {res.history && res.history.length > 0 && (
           <div className="border-t border-gray-100 pt-3">
             <p className="text-xs font-700 text-gray-400 mb-2">변경 이력</p>
             <div className="space-y-1.5">
               {res.history.map(h => (
                 <div key={h.id} className="flex gap-2 text-xs text-gray-500">
-                  <span className="text-gray-300 shrink-0">{new Date(h.changed_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}</span>
+                  <span className="text-gray-300 shrink-0">{kstDate(h.changed_at).slice(5)} {fmtTime(h.changed_at)}</span>
                   <span>{h.description}</span>
                 </div>
               ))}
@@ -221,10 +231,11 @@ function Row({ label, value }: { label: string; value: string }) {
 }
 
 /* ── 월 달력 ── */
-function MonthCalendar({ year, month, reservations, onDayClick }: {
-  year: number; month: number; reservations: Reservation[]; onDayClick: (date: string) => void
+function MonthCalendar({ year, month, reservations, closedDates, onDayClick }: {
+  year: number; month: number; reservations: Reservation[]; closedDates: ClosedDate[]; onDayClick: (date: string) => void
 }) {
-  const today = fmt(new Date())
+  const today = kstNow().date
+  const closedSet = new Set(closedDates.map(c => c.date))
   const startOffset = new Date(year, month, 1).getDay()
   const daysInMonth = new Date(year, month + 1, 0).getDate()
   const cells: Array<{ date: string; day: number } | null> = []
@@ -235,7 +246,7 @@ function MonthCalendar({ year, month, reservations, onDayClick }: {
   while (cells.length % 7 !== 0) cells.push(null)
 
   const byDate: Record<string, Reservation[]> = {}
-  reservations.forEach(r => { const d = r.start_at.slice(0,10); if (!byDate[d]) byDate[d]=[]; byDate[d].push(r) })
+  reservations.forEach(r => { const d = kstDate(r.start_at); if (!byDate[d]) byDate[d]=[]; byDate[d].push(r) })
 
   return (
     <div>
@@ -255,6 +266,7 @@ function MonthCalendar({ year, month, reservations, onDayClick }: {
               <span className={`text-xs font-600 inline-flex w-5 h-5 items-center justify-center rounded-full ${isToday?'bg-brand-500 text-white':col===0?'text-red-400':col===6?'text-blue-400':'text-gray-700'}`}>
                 {cell.day}
               </span>
+              {closedSet.has(cell.date) && <span className="text-[9px] font-700 text-red-400 ml-0.5">휴무</span>}
               <div className="mt-0.5 space-y-0.5">
                 {rsvs.slice(0,2).map(r => (
                   <div key={r.id} className="text-[9px] leading-tight px-1 rounded truncate" style={{ background: STATUS_BG[r.status], color: STATUS_COLOR[r.status] }}>
@@ -279,8 +291,8 @@ export default function ReservationsClient({ initialReservations, initialDate, p
 }) {
   const [view, setView] = useState<'day' | 'month'>('day')
   const [currentDate, setCurrentDate] = useState(initialDate)
-  const [currentYear, setCurrentYear] = useState(() => new Date(initialDate).getFullYear())
-  const [currentMonth, setCurrentMonth] = useState(() => new Date(initialDate).getMonth())
+  const [currentYear, setCurrentYear] = useState(() => Number(initialDate.slice(0, 4)))
+  const [currentMonth, setCurrentMonth] = useState(() => Number(initialDate.slice(5, 7)) - 1)
 
   // 일단위: 초기 데이터로 시작 (서버에서 받음). 날짜 변경 시 fetch
   const [reservations, setReservations] = useState<Reservation[]>(initialReservations)
@@ -291,29 +303,53 @@ export default function ReservationsClient({ initialReservations, initialDate, p
   const [showForm, setShowForm] = useState(false)
   const [editTarget, setEditTarget] = useState<Reservation | null>(null)
   const [detailTarget, setDetailTarget] = useState<Reservation | null>(null)
+  const [closedDates, setClosedDates] = useState<ClosedDate[]>([])
+
+  const loadClosed = useCallback(async (from: string, to: string) => {
+    const data = await fetch(`/api/closed-dates?from=${from}&to=${to}`).then(r => r.json())
+    if (Array.isArray(data)) setClosedDates(data)
+  }, [])
 
   const loadDay = useCallback(async (date: string) => {
     setLoadingDay(true)
-    const data = await fetch(`/api/reservations?from=${date}T00:00:00&to=${date}T23:59:59`).then(r => r.json())
+    const [data] = await Promise.all([
+      fetch(`/api/reservations?${kstRange(date, date)}`).then(r => r.json()),
+      loadClosed(date, date),
+    ])
     setReservations(Array.isArray(data) ? data : [])
     setLoadingDay(false)
-  }, [])
+  }, [loadClosed])
 
   const loadMonth = useCallback(async (year: number, month: number) => {
     setLoadingMonth(true)
     const last = new Date(year, month + 1, 0).getDate()
-    const from = `${year}-${String(month+1).padStart(2,'0')}-01T00:00:00`
-    const to   = `${year}-${String(month+1).padStart(2,'0')}-${String(last).padStart(2,'0')}T23:59:59`
-    const data = await fetch(`/api/reservations?from=${from}&to=${to}`).then(r => r.json())
+    const from = `${year}-${String(month+1).padStart(2,'0')}-01`
+    const to   = `${year}-${String(month+1).padStart(2,'0')}-${String(last).padStart(2,'0')}`
+    const [data] = await Promise.all([
+      fetch(`/api/reservations?${kstRange(from, to)}`).then(r => r.json()),
+      loadClosed(from, to),
+    ])
     setMonthReservations(Array.isArray(data) ? data : [])
     setLoadingMonth(false)
-  }, [])
+  }, [loadClosed])
 
   const moveDay = (d: number) => {
-    const dt = new Date(currentDate); dt.setDate(dt.getDate() + d)
-    const next = fmt(dt)
+    const next = addDays(currentDate, d)
     setCurrentDate(next)
     loadDay(next)
+  }
+
+  const closedToday = closedDates.find(c => c.date === currentDate)
+  const toggleClosed = async () => {
+    if (closedToday) {
+      if (!confirm(`${currentDate} 휴무를 해제할까요?`)) return
+      await fetch(`/api/closed-dates?date=${currentDate}`, { method: 'DELETE' })
+    } else {
+      const reason = prompt(`${currentDate}을 휴무일로 지정합니다. 사유를 입력하세요 (예: 추석 연휴)`)
+      if (reason === null) return
+      await fetch('/api/closed-dates', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ date: currentDate, reason }) })
+    }
+    loadClosed(currentDate, currentDate)
   }
 
   const moveMonth = (d: number) => {
@@ -344,7 +380,7 @@ export default function ReservationsClient({ initialReservations, initialDate, p
 
   /* 예약 저장 (겹침 확인 필요 → API 후 반영) */
   const handleSave = async (form: typeof EMPTY_FORM) => {
-    const start_at = `${form.date}T${form.time}:00`
+    const start_at = `${form.date}T${form.time}:00+09:00`
     const selectedProduct = products.find(p => p.id === Number(form.product_id))
     const payload = {
       customer_name: form.customer_name,
@@ -379,18 +415,18 @@ export default function ReservationsClient({ initialReservations, initialDate, p
     setDetailTarget(data)
   }
 
-  const today = fmt(new Date())
+  const today = kstNow().date
   const dateLabel = currentDate === today ? '오늘' :
-    currentDate === fmt(new Date(new Date().setDate(new Date().getDate()-1))) ? '어제' :
-    currentDate === fmt(new Date(new Date().setDate(new Date().getDate()+1))) ? '내일' :
+    currentDate === addDays(today, -1) ? '어제' :
+    currentDate === addDays(today, 1) ? '내일' :
     currentDate
 
   const editInitial = editTarget ? {
     customer_name: editTarget.customer_name,
     customer_phone: editTarget.customer_phone ?? '',
     product_id: editTarget.product_id?.toString() ?? '',
-    date: editTarget.start_at.slice(0,10),
-    time: editTarget.start_at.slice(11,16),
+    date: kstDate(editTarget.start_at),
+    time: fmtTime(editTarget.start_at),
     price: editTarget.price?.toString() ?? '',
     memo: editTarget.memo ?? '',
   } : undefined
@@ -429,6 +465,16 @@ export default function ReservationsClient({ initialReservations, initialDate, p
       </BrandHeader>
 
       <div className="px-4 py-4">
+        {view === 'day' && (
+          <div className="flex items-center justify-between mb-3 min-h-7">
+            {closedToday
+              ? <p className="text-xs font-700 text-red-400">휴무일{closedToday.reason ? ` · ${closedToday.reason}` : ''} (외부 예약 차단)</p>
+              : <span />}
+            <button onClick={toggleClosed} className="text-[11px] font-600 px-3 py-1 rounded-full border border-brand-200 text-brand-500">
+              {closedToday ? '휴무 해제' : '휴무 지정'}
+            </button>
+          </div>
+        )}
         {view === 'day' ? (
           loadingDay ? (
             <p className="text-sm text-gray-400 text-center py-10">불러오는 중...</p>
@@ -447,6 +493,7 @@ export default function ReservationsClient({ initialReservations, initialDate, p
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-700 text-gray-800">{r.customer_name}</span>
                         <span className="text-[10px] font-700 px-2 py-0.5 rounded-full" style={{ background: STATUS_BG[r.status], color: STATUS_COLOR[r.status] }}>{STATUS_LABEL[r.status]}</span>
+                        {r.source === 'external' && <span className="text-[10px] font-700 px-2 py-0.5 rounded-full bg-sky-50 text-sky-600">외부예약</span>}
                       </div>
                       {r.product_name && <p className="text-xs text-gray-500 mt-0.5">{r.product_name}</p>}
                       {r.memo && <p className="text-xs text-gray-400 mt-0.5 truncate">{r.memo}</p>}
@@ -464,7 +511,7 @@ export default function ReservationsClient({ initialReservations, initialDate, p
         ) : loadingMonth ? (
           <p className="text-sm text-gray-400 text-center py-10">불러오는 중...</p>
         ) : (
-          <MonthCalendar year={currentYear} month={currentMonth} reservations={monthReservations} onDayClick={(date) => { setCurrentDate(date); setView('day'); loadDay(date) }} />
+          <MonthCalendar year={currentYear} month={currentMonth} reservations={monthReservations} closedDates={closedDates} onDayClick={(date) => { setCurrentDate(date); setView('day'); loadDay(date) }} />
         )}
       </div>
 

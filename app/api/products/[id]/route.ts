@@ -4,11 +4,13 @@ import { supabase } from '@/lib/supabase'
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const body = await req.json()
-  const { name, price, duration_min, stock, description, is_active } = body
+  const { name, service_group, price, member_price, duration_min, stock, description, is_active } = body
 
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() }
   if (name !== undefined) updates.name = name.trim()
   if (price !== undefined) updates.price = price
+  if (member_price !== undefined) updates.member_price = member_price
+  if (service_group !== undefined) updates.service_group = service_group || null
   if (duration_min !== undefined) updates.duration_min = duration_min
   if (stock !== undefined) updates.stock = stock
   if (description !== undefined) updates.description = description || null

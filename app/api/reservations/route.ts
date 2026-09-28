@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
+import { blockTimes, findConflict, linkCustomer, recordCustomerHistory } from '@/lib/booking/admin'
 
 /* 시작/종료 기준으로 날짜 범위 조회 */
 export async function GET(req: NextRequest) {
@@ -20,65 +21,42 @@ export async function GET(req: NextRequest) {
   return NextResponse.json(data ?? [])
 }
 
-/* 겹침 확인: 버퍼 포함 블록이 겹치는 기존 예약 있으면 거부 */
-async function checkConflict(startAt: Date, endAt: Date, excludeId?: number) {
-  const bufMs = 10 * 60 * 1000
-  const blockStart = new Date(startAt.getTime() - bufMs).toISOString()
-  const blockEnd   = new Date(endAt.getTime()   + bufMs).toISOString()
-
-  let query = supabase
-    .from('sh_shop_reservations')
-    .select('id, customer_name, start_at, end_at, product_name')
-    .neq('status', 'cancelled')
-    // 겹치는 조건: 기존 end_at > 새 blockStart AND 기존 start_at < 새 blockEnd
-    .gt('end_at', blockStart)
-    .lt('start_at', blockEnd)
-
-  if (excludeId) query = query.neq('id', excludeId)
-
-  const { data } = await query
-  return data ?? []
-}
-
 export async function POST(req: NextRequest) {
   const body = await req.json()
-  const { customer_name, customer_phone, customer_id, product_id, product_name, duration_min, start_at, price, memo } = body
+  const { customer_name, customer_phone, product_id, product_name, duration_min, start_at, price, memo } = body
 
   if (!customer_name?.trim()) return NextResponse.json({ error: '고객명 필수' }, { status: 400 })
-  if (!start_at)              return NextResponse.json({ error: '예약 시간 필수' }, { status: 400 })
+  if (!start_at || isNaN(Date.parse(start_at))) return NextResponse.json({ error: '예약 시간 필수' }, { status: 400 })
 
-  const startDate = new Date(start_at)
   const mins = duration_min ?? 60
-  const endDate = new Date(startDate.getTime() + mins * 60 * 1000)
+  const times = blockTimes(start_at, mins)
 
-  // 겹침 확인
-  const conflicts = await checkConflict(startDate, endDate)
-  if (conflicts.length > 0) {
-    const c = conflicts[0]
-    return NextResponse.json({
-      error: `예약 시간 충돌`,
-      conflict: c,
-    }, { status: 409 })
-  }
+  // 겹침 확인 (시술 + 정리시간 20분 블록)
+  const conflict = await findConflict(times.start_at, times.block_end_at)
+  if (conflict) return NextResponse.json({ error: '예약 시간 충돌', conflict }, { status: 409 })
+
+  const name = customer_name.trim()
+  const { phone, customerId } = await linkCustomer(name, customer_phone)
 
   const { data, error } = await supabase
     .from('sh_shop_reservations')
     .insert({
-      customer_name: customer_name.trim(),
-      customer_phone: customer_phone || null,
-      customer_id: customer_id || null,
+      customer_name: name,
+      customer_phone: phone,
+      customer_id: customerId,
       product_id: product_id || null,
       product_name: product_name || null,
       duration_min: mins,
-      start_at: startDate.toISOString(),
-      end_at: endDate.toISOString(),
+      ...times,
       price: price ?? null,
       status: 'scheduled',
+      source: 'admin',
       memo: memo || null,
     })
     .select()
     .single()
 
+  if (error?.code === '23P01') return NextResponse.json({ error: '예약 시간 충돌' }, { status: 409 })
   if (error) return NextResponse.json({ error: '저장 실패' }, { status: 500 })
 
   // 이력 기록
@@ -86,6 +64,12 @@ export async function POST(req: NextRequest) {
     reservation_id: data.id,
     action: 'created',
     description: `예약 생성`,
+    new_value: data,
+  })
+  await recordCustomerHistory(customerId, {
+    reservation_id: data.id,
+    action: 'reservation_created',
+    description: `매장 예약: ${product_name ?? '시술 미지정'}`,
     new_value: data,
   })
 

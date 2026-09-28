@@ -13,7 +13,7 @@ export default async function HomePage() {
 
   const [resResult, prodResult] = await Promise.all([
     supabase.from('sh_shop_reservations').select('*').gte('start_at', from).lte('start_at', to).order('start_at'),
-    supabase.from('sh_shop_products').select('*').eq('category', 'service').order('sort_order').order('created_at'),
+    supabase.from('sh_shop_products').select('*').eq('category', 'service').eq('is_active', true).order('sort_order').order('created_at'),
   ])
 
   return (

@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
+import { normalizePhone } from '@/lib/booking/phone'
+
+function cleanPhone(phone: unknown): string | null {
+  if (typeof phone !== 'string' || !phone.trim()) return null
+  try { return normalizePhone(phone) } catch { return phone.trim() }
+}
 
 export async function GET() {
   const { data, error } = await supabase
@@ -21,10 +27,11 @@ export async function POST(req: NextRequest) {
 
   const { data, error } = await supabase
     .from('sh_shop_customers')
-    .insert({ name: name.trim(), phone: phone || null, memo: memo || null })
+    .insert({ name: name.trim(), phone: cleanPhone(phone), memo: memo || null })
     .select()
     .single()
 
+  if (error?.code === '23505') return NextResponse.json({ error: '이미 등록된 전화번호입니다' }, { status: 409 })
   if (error) return NextResponse.json({ error: '저장 실패' }, { status: 500 })
   return NextResponse.json(data)
 }

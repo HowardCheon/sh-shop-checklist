@@ -7,6 +7,8 @@ export interface Product {
   id: number
   name: string
   price: number
+  member_price: number | null
+  service_group: string | null
   duration_min: number | null
   description: string | null
   is_active: boolean
@@ -14,7 +16,7 @@ export interface Product {
 
 const CAT = { color: '#bc7659', light: '#faf4f0', border: '#f3e6de' }
 const FAB = 'linear-gradient(135deg, #bc7659, #cb9175)'
-const EMPTY_FORM = { name: '', price: '', duration_min: '', description: '' }
+const EMPTY_FORM = { name: '', service_group: 'FACE', price: '', member_price: '', duration_min: '', description: '' }
 
 function formatPrice(n: number) { return n.toLocaleString() + '원' }
 function hourlyRate(price: number, min: number | null) {
@@ -39,6 +41,9 @@ function ProductCard({ product, onToggle, onEdit, onDelete }: {
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 flex-wrap">
+            {product.service_group && (
+              <span className="text-[10px] font-700 text-brand-500 bg-brand-50 rounded-full px-2 py-0.5">{product.service_group}</span>
+            )}
             <span className="font-serif font-bold text-brand-800 text-base">{product.name}</span>
             {!product.is_active && (
               <span className="text-xs text-gray-400 bg-gray-100 rounded-full px-2 py-0.5">비활성</span>
@@ -46,6 +51,9 @@ function ProductCard({ product, onToggle, onEdit, onDelete }: {
           </div>
           <div className="flex items-center gap-2 mt-1.5 flex-wrap">
             <span className="font-serif text-base font-extrabold" style={{ color: CAT.color }}>{formatPrice(product.price)}</span>
+            {product.member_price != null && (
+              <span className="text-xs text-brand-600 bg-brand-50 rounded-full px-2 py-0.5">회원 {formatPrice(product.member_price)}</span>
+            )}
             {product.duration_min && (
               <span className="text-xs text-brand-600 bg-brand-50 rounded-full px-2 py-0.5">⏱ {product.duration_min}분</span>
             )}
@@ -95,7 +103,7 @@ function ProductForm({ initial, onSave, onCancel }: {
   const [form, setForm] = useState(initial)
   const [saving, setSaving] = useState(false)
   const set = (k: keyof typeof EMPTY_FORM) =>
-    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setForm(f => ({ ...f, [k]: e.target.value }))
+    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => setForm(f => ({ ...f, [k]: e.target.value }))
   const handleSave = async () => {
     if (!form.name.trim() || form.price === '') return
     setSaving(true)
@@ -111,8 +119,19 @@ function ProductForm({ initial, onSave, onCancel }: {
       </div>
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <label className={lbl}>가격 (원) <span className="text-red-400">*</span></label>
-          <input type="number" className={inp} placeholder="70000" value={form.price} onChange={set('price')} />
+          <label className={lbl}>분류</label>
+          <select className={inp} value={form.service_group} onChange={set('service_group')}>
+            <option value="FACE">FACE</option>
+            <option value="BODY">BODY</option>
+          </select>
+        </div>
+        <div>
+          <label className={lbl}>비회원가 (원) <span className="text-red-400">*</span></label>
+          <input type="number" className={inp} placeholder="80000" value={form.price} onChange={set('price')} />
+        </div>
+        <div>
+          <label className={lbl}>회원가 (원)</label>
+          <input type="number" className={inp} placeholder="50000" value={form.member_price} onChange={set('member_price')} />
         </div>
         <div>
           <label className={lbl}>소요 시간 (분)</label>
@@ -153,6 +172,8 @@ export default function ProductsClient({ initialProducts }: { initialProducts: P
       id: tempId,
       name: form.name,
       price: Number(form.price),
+      member_price: toNum(form.member_price),
+      service_group: form.service_group,
       duration_min: toNum(form.duration_min),
       description: form.description || null,
       is_active: true,
@@ -163,7 +184,7 @@ export default function ProductsClient({ initialProducts }: { initialProducts: P
     const res = await fetch('/api/products', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ category: 'service', name: form.name, price: Number(form.price), duration_min: toNum(form.duration_min), stock: null, description: form.description || null }),
+      body: JSON.stringify({ category: 'service', service_group: form.service_group, name: form.name, price: Number(form.price), member_price: toNum(form.member_price), duration_min: toNum(form.duration_min), stock: null, description: form.description || null }),
     })
     if (res.ok) {
       const saved = await res.json()
@@ -179,6 +200,8 @@ export default function ProductsClient({ initialProducts }: { initialProducts: P
       ...editTarget,
       name: form.name,
       price: Number(form.price),
+      member_price: toNum(form.member_price),
+      service_group: form.service_group,
       duration_min: toNum(form.duration_min),
       description: form.description || null,
     }
@@ -189,7 +212,7 @@ export default function ProductsClient({ initialProducts }: { initialProducts: P
     const res = await fetch(`/api/products/${editTarget.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: form.name, price: Number(form.price), duration_min: toNum(form.duration_min), description: form.description || null }),
+      body: JSON.stringify({ name: form.name, service_group: form.service_group, price: Number(form.price), member_price: toNum(form.member_price), duration_min: toNum(form.duration_min), description: form.description || null }),
     })
     if (!res.ok) setProducts(prev)
   }
@@ -216,7 +239,9 @@ export default function ProductsClient({ initialProducts }: { initialProducts: P
 
   const toForm = (p: Product): typeof EMPTY_FORM => ({
     name: p.name,
+    service_group: p.service_group ?? 'FACE',
     price: p.price.toString(),
+    member_price: p.member_price?.toString() ?? '',
     duration_min: p.duration_min?.toString() ?? '',
     description: p.description ?? '',
   })

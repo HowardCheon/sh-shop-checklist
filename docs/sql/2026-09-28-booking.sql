@@ -83,3 +83,4 @@ from (values
   ('BODY', '전신 로즈디톡스 해독관리', 120000, 80000, 60, 17)
 ) as v(grp, name, price, member_price, duration_min, sort_order)
 where not exists (select 1 from sh_shop_products p where p.name = v.name and p.category = 'service');
+select setval('sh_shop_products_id_seq', (select max(id) from sh_shop_products));

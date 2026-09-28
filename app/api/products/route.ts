@@ -14,7 +14,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const body = await req.json()
-  const { category, name, price, duration_min, stock, description } = body
+  const { category, service_group, name, price, member_price, duration_min, stock, description } = body
 
   if (!name?.trim()) return NextResponse.json({ error: '상품명 필수' }, { status: 400 })
   if (!category) return NextResponse.json({ error: '카테고리 필수' }, { status: 400 })
@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
 
   const { data, error } = await supabase
     .from('sh_shop_products')
-    .insert({ category, name: name.trim(), price, duration_min: duration_min ?? null, stock: stock ?? null, description: description || null })
+    .insert({ category, service_group: service_group || null, name: name.trim(), price, member_price: member_price ?? null, duration_min: duration_min ?? null, stock: stock ?? null, description: description || null })
     .select()
     .single()
 
