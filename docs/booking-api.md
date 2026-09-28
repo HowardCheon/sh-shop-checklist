@@ -39,6 +39,9 @@
   "slots": [ { "time": "10:00", "program_count": 14 } ] }
 ```
 
+### 예약 변경 화면용 옵션
+`/availability`, `/availability/programs` 에 `&exclude=<예약 id>&phone=<예약 전화번호>` 를 붙이면 그 예약 자신의 시간 블록을 제외하고 계산합니다(전화번호 불일치 시 404).
+
 ### GET /availability/programs?date=&time=&phone=
 `phone` 을 주면 `is_member`, `applied_price`(적용가) 가 채워집니다.
 ```json

@@ -45,6 +45,13 @@ try {
   check('예약 생성 201 + 한글 보존', r.status === 201 && r.body.customer_name === '홍길동' && r.body.message === '첫 방문입니다', r)
   const id1 = r.body.id
 
+  r = await call('GET', `/availability/programs?date=${TUE}&time=11:30`)
+  const withoutExclude = r.body.programs?.length
+  r = await call('GET', `/availability/programs?date=${TUE}&time=11:30&exclude=${id1}&phone=01099990001`)
+  check('변경 시 본인 예약 제외하면 같은 시간 선택 가능', withoutExclude === 0 && r.body.programs?.some(p => p.id === 13), [withoutExclude, r])
+  r = await call('GET', `/availability?date=${TUE}&exclude=${id1}&phone=01000000000`)
+  check('다른 번호로 exclude → NOT_FOUND', r.status === 404, r)
+
   r = await call('GET', '/customers/lookup?phone=01099990001')
   check('고객 자동 등록 + 마스킹', r.body.exists && r.body.name_masked === '홍*동' && r.body.is_member === false, r)
 

@@ -124,29 +124,36 @@ export async function getPrograms() {
   return (await repo.listPrograms()).map(programDto)
 }
 
-export async function getAvailability(dateInput: unknown, now = new Date()) {
+/** 예약 변경 화면용 — 본인 예약(전화번호 일치)만 가용시간 계산에서 제외 */
+async function excludedId(input: { exclude?: unknown; phone?: unknown }): Promise<number | undefined> {
+  if (input.exclude === undefined || input.exclude === null || input.exclude === '') return undefined
+  const { reservation } = await loadOwnReservation(input.exclude, input)
+  return reservation.id
+}
+
+export async function getAvailability(dateInput: unknown, now = new Date(), opts: { exclude?: unknown; phone?: unknown } = {}) {
   const date = requireDate(dateInput)
   const hours = businessHours(date)
   const closed = hours ? await repo.getClosedDate(date) : null
   if (!hours || closed) {
     return { date, closed: true, closed_reason: closed?.reason ?? '정기 휴무', business_hours: hours, slots: [] }
   }
-  const [programs, blocks] = await Promise.all([repo.listPrograms(), repo.listBlocks(date)])
-  return { date, closed: false, closed_reason: null, business_hours: hours, slots: slotsFor(date, programs, blocks, now) }
+  const [programs, blocks, exclude] = await Promise.all([repo.listPrograms(), repo.listBlocks(date), excludedId(opts)])
+  return { date, closed: false, closed_reason: null, business_hours: hours, slots: slotsFor(date, programs, blocks, now, exclude) }
 }
 
-export async function getProgramsAt(input: { date?: unknown; time?: unknown; phone?: unknown }, now = new Date()) {
+export async function getProgramsAt(input: { date?: unknown; time?: unknown; phone?: unknown; exclude?: unknown }, now = new Date()) {
   const date = requireDate(input.date)
   const time = String(input.time ?? '')
   await assertStartAllowed(date, time, now)
 
   const member = input.phone ? isMember(await repo.findCustomerByPhone(verifyPhoneOwnership(input))) : null
-  const [programs, blocks] = await Promise.all([repo.listPrograms(), repo.listBlocks(date)])
+  const [programs, blocks, exclude] = await Promise.all([repo.listPrograms(), repo.listBlocks(date), excludedId(input)])
   return {
     date,
     time,
     is_member: member,
-    programs: programsAt(date, time, programs, blocks).map(p => ({
+    programs: programsAt(date, time, programs, blocks, exclude).map(p => ({
       ...programDto(p),
       end_time: isoToKst(timesFor(date, time, p.duration_min).end_at).time,
       applied_price: member === null ? null : priceFor(p, member),
