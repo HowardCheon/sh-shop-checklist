@@ -7,7 +7,9 @@ import { addDays, kstToIso } from './time'
 export type ProgramRow = {
   id: number
   service_group: string | null
+  slug: string | null
   name: string
+  description: string | null
   duration_min: number
   price: number
   member_price: number | null
@@ -54,7 +56,7 @@ function isOverlapError(error: { code?: string } | null) {
 export async function listPrograms(): Promise<ProgramRow[]> {
   const { data, error } = await supabase
     .from('sh_shop_products')
-    .select('id, service_group, name, duration_min, price, member_price')
+    .select('id, service_group, slug, name, description, duration_min, price, member_price')
     .eq('category', 'service')
     .eq('is_active', true)
     .not('duration_min', 'is', null)

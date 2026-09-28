@@ -17,7 +17,9 @@ function programDto(p: ProgramRow) {
   return {
     id: p.id,
     group: p.service_group,
+    slug: p.slug,
     name: p.name,
+    description: p.description,
     duration_min: p.duration_min,
     member_price: p.member_price ?? p.price,
     regular_price: p.price,

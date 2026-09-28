@@ -123,6 +123,7 @@ function ProductForm({ initial, onSave, onCancel }: {
           <select className={inp} value={form.service_group} onChange={set('service_group')}>
             <option value="FACE">FACE</option>
             <option value="BODY">BODY</option>
+            <option value="PREMIUM">PREMIUM</option>
           </select>
         </div>
         <div>

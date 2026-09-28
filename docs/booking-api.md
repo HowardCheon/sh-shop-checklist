@@ -29,7 +29,7 @@
 
 ### GET /programs
 ```json
-{ "programs": [ { "id": 2, "group": "FACE", "name": "베이직 관리", "duration_min": 60, "member_price": 50000, "regular_price": 80000 } ] }
+{ "programs": [ { "id": 2, "group": "FACE", "slug": "basic-care", "name": "베이직 피부관리", "description": null, "duration_min": 60, "member_price": 50000, "regular_price": 80000 } ] }
 ```
 
 ### GET /availability?date=
