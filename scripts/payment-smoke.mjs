@@ -26,6 +26,20 @@ r = await anon('sh_shop_prepaid_ledger?select=*')
 const rows = await r.json().catch(() => null)
 check('anon 키 원장 조회 결과 없음', Array.isArray(rows) ? rows.length === 0 : r.status >= 400, rows)
 
+for (const path of ['/loginX', '/login/x']) {
+  r = await fetch(BASE + path, { redirect: 'manual' })
+  check(`${path} 는 보호 대상`, r.status === 307, r.status)
+}
+r = await fetch(BASE + '/api/customers/1.json')
+check('/api/*.json 형태도 401', r.status === 401, r.status)
+
+// 로그인 시도 제한 (가짜 IP 로 동시 7회 → 초과분 429)
+const tries = await Promise.all(Array.from({ length: 7 }, () => fetch(BASE + '/api/auth/login', {
+  method: 'POST', headers: { 'Content-Type': 'application/json', 'x-forwarded-for': 'smoke-test-ip' }, body: JSON.stringify({ pin: '0000' }),
+}).then(x => x.status)))
+check('동시 로그인 시도도 제한(429 포함)', tries.filter(s => s === 429).length >= 2 && !tries.includes(200), tries)
+await sql(`delete from sh_shop_login_attempts where ip in ('smoke-test-ip', 'local', '::1', '127.0.0.1')`)
+
 const call = await adminClient(BASE)
 await cleanupTestData()
 try {
@@ -80,6 +94,25 @@ try {
   check('환불: 실제 잔액 환불 + 보너스 소멸 + 잔액 0', r.status === 200 && r.body.refund_amount === before.prepaid_cash && r.body.bonus_forfeited === before.prepaid_bonus && bal.prepaid_cash === 0 && bal.prepaid_bonus === 0, [r, bal])
   r = await call('POST', `/api/customers/${cid}/refund`, {})
   check('잔액 없음 환불 → 409', r.status === 409, r)
+
+  // ── 리뷰 반영 확인
+  r = await call('PUT', `/api/reservations/${resv2.id}`, { status: 'completed' })
+  check('PUT 으로 완료 처리 차단 → 400', r.status === 400, r)
+  await call('POST', `/api/customers/${cid}/charge`, { amount: 1000000 })
+  r = await call('POST', `/api/reservations/${resv2.id}/complete`, { amount: 110000, use_prepaid: true })
+  const pay3 = r.body.payment
+  r = await call('POST', `/api/payments/${pay3.id}/void`)
+  const resv2Now = (await call('GET', `/api/reservations/${resv2.id}`)).body
+  check('예약 결제 개별 취소 → 예약 상태 복원', r.status === 200 && resv2Now.status === 'scheduled', resv2Now.status)
+  r = await call('POST', `/api/reservations/${resv2.id}/complete`, { amount: 110000, use_prepaid: true })
+  const used = r.body.payment
+  await call('POST', `/api/customers/${cid}/refund`, {})
+  r = await call('PUT', `/api/reservations/${resv2.id}`, { status: 'cancelled' })
+  bal = (await call('GET', `/api/customers/${cid}/ledger`)).body.balance
+  check('환불 후 결제 취소 → 실제만 복원, 보너스 미복원', r.status === 200 && bal.prepaid_cash === used.prepaid_cash_used && bal.prepaid_bonus === 0, [used, bal])
+  r = await call('PUT', `/api/reservations/${resv2.id}`, { status: 'cancelled' })
+  check('취소 재요청도 오류 없음', r.status === 200, r)
+  await call('POST', `/api/customers/${cid}/refund`, {})
 
   const ledger = await sql(`select type from sh_shop_prepaid_ledger where customer_id = ${cid}`)
   check('원장 유형 기록(charge/use/use_cancel/refund)', ['charge', 'use', 'use_cancel', 'refund'].every(t => ledger.some(l => l.type === t)), ledger)

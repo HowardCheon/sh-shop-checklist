@@ -25,6 +25,11 @@ describe('관리자 세션', () => {
     process.env.ADMIN_SESSION_SECRET = 'y'.repeat(40)
     expect(verifySessionToken(token)).toBe(false)
   })
+  it('PIN 이 바뀌면 기존 토큰 무효', () => {
+    const token = createSessionToken()
+    process.env.ADMIN_PIN = '5678'
+    expect(verifySessionToken(token)).toBe(false)
+  })
   it('PIN 비교', () => {
     expect(verifyPin('1234')).toBe(true)
     expect(verifyPin('0000')).toBe(false)

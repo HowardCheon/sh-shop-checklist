@@ -2,6 +2,16 @@
 
 import { useState, useCallback } from 'react'
 
+/* 같은 사이트 내부 경로만 허용 (//evil.com, /\\evil.com 등 차단) */
+function safeNext(next: string) {
+  try {
+    const url = new URL(next, window.location.origin)
+    return url.origin === window.location.origin ? url.pathname + url.search : '/'
+  } catch {
+    return '/'
+  }
+}
+
 /* PIN 키패드 로그인 — 서버에서 PIN 검증 후 세션 쿠키 발급 */
 export default function PinLogin({ next }: { next: string }) {
   const [pin, setPin] = useState('')
@@ -18,7 +28,7 @@ export default function PinLogin({ next }: { next: string }) {
     }).catch(() => null)
     if (res?.ok) {
       // 서버 컴포넌트가 새 쿠키로 다시 렌더되도록 전체 이동
-      window.location.replace(next.startsWith('/') && !next.startsWith('//') ? next : '/')
+      window.location.replace(safeNext(next))
       return
     }
     const data = await res?.json().catch(() => null)

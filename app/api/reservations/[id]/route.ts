@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { blockTimes, findConflict, linkCustomer, recordCustomerHistory } from '@/lib/booking/admin'
-import { voidReservationPayments } from '@/lib/payments'
+import { voidReservationPayments, paymentErrorResponse } from '@/lib/payments'
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -21,6 +21,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   // 기존 데이터 조회
   const { data: existing } = await supabase.from('sh_shop_reservations').select('*').eq('id', id).single()
   if (!existing) return NextResponse.json({ error: '예약 없음' }, { status: 404 })
+
+  // 완료 처리는 결제와 함께 /complete 로만
+  if (status === 'completed' && existing.status !== 'completed') {
+    return NextResponse.json({ error: '시술 완료는 결제 화면에서 처리하세요' }, { status: 400 })
+  }
 
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() }
   const changes: string[] = []
@@ -58,12 +63,18 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     changes.push(status === 'completed' ? '시술 완료' : status === 'cancelled' ? '예약 취소' : `상태 변경 → ${status}`)
   }
 
-  const { data, error } = await supabase.from('sh_shop_reservations').update(updates).eq('id', id).select().single()
-  if (!error && existing.status === 'completed' && data.status !== 'completed') {
-    // 완료 → 취소/복원: 결제 취소 및 선불 차감분 복원
-    const voided = await voidReservationPayments(Number(id))
-    if (voided > 0) changes.push(`결제 ${voided}건 취소(선불 복원)`)
+  // 완료 → 취소/복원: 상태 변경 전에 결제 취소(선불 복원) — 실패하면 상태를 바꾸지 않음
+  if (existing.status === 'completed' && status !== undefined && status !== 'completed') {
+    try {
+      const voided = await voidReservationPayments(Number(id))
+      if (voided > 0) changes.push(`결제 ${voided}건 취소(선불 복원)`)
+    } catch (e) {
+      const { body: errBody, status: errStatus } = paymentErrorResponse(e)
+      return NextResponse.json(errBody, { status: errStatus })
+    }
   }
+
+  const { data, error } = await supabase.from('sh_shop_reservations').update(updates).eq('id', id).select().single()
   if (error?.code === '23P01') return NextResponse.json({ error: '예약 시간 충돌' }, { status: 409 })
   if (error) return NextResponse.json({ error: '수정 실패' }, { status: 500 })
 

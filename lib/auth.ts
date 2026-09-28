@@ -4,9 +4,11 @@ import { createHmac, timingSafeEqual } from 'node:crypto'
 export const SESSION_COOKIE = 'sh_admin'
 export const SESSION_MAX_AGE_SEC = 30 * 24 * 60 * 60 // 30일
 
+/** 서명 키 = 세션 비밀키 + PIN (PIN 을 바꾸면 기존 쿠키 모두 무효) */
 function secret(): string | null {
   const s = process.env.ADMIN_SESSION_SECRET
-  return s && s.length >= 32 ? s : null
+  const pin = process.env.ADMIN_PIN
+  return s && s.length >= 32 && pin ? `${s}:${pin}` : null
 }
 
 function sign(payload: string, key: string) {

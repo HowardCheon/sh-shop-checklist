@@ -16,6 +16,7 @@ export function proxy(req: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!_next/|api/public/|api/auth/|login|favicon\\.ico|.*\\.[a-zA-Z0-9]+$).*)',
+    // 확장자 예외는 /api 에는 적용하지 않음, /login 은 정확히 일치할 때만 제외
+    '/((?!_next/|api/public/|api/auth/|login$|favicon\\.ico$|(?!api/).*\\.[a-zA-Z0-9]+$).*)',
   ],
 }

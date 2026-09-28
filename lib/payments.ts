@@ -109,8 +109,16 @@ export async function voidPayment(paymentId: number) {
 /** 예약의 유효 결제를 모두 취소 (완료 → 취소/복원 시) */
 export async function voidReservationPayments(reservationId: number) {
   const { data } = await supabase.from('sh_shop_payments').select('id').eq('reservation_id', reservationId).eq('status', 'paid')
-  for (const p of data ?? []) await voidPayment(p.id)
-  return (data ?? []).length
+  let count = 0
+  for (const p of data ?? []) {
+    try {
+      await voidPayment(p.id)
+      count++
+    } catch (e) {
+      if (!(e instanceof PaymentError && e.status === 409)) throw e // 이미 취소됨은 무시
+    }
+  }
+  return count
 }
 
 export async function refund(customerId: number, memo: string | null) {
