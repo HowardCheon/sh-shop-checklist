@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
 
   let query = supabase
     .from('sh_shop_reservations')
-    .select('*')
+    .select('*, customer:sh_shop_customers(prepaid_cash, prepaid_bonus)')
     .order('start_at', { ascending: true })
 
   if (from) query = query.gte('start_at', from)

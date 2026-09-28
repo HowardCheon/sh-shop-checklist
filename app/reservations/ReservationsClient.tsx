@@ -18,6 +18,8 @@ interface Reservation {
   price: number | null
   status: 'scheduled' | 'completed' | 'cancelled'
   source?: 'admin' | 'external'
+  price_type?: 'member' | 'regular' | null
+  customer?: { prepaid_cash: number; prepaid_bonus: number } | null
   memo: string | null
   history?: HistoryItem[]
 }
@@ -47,6 +49,16 @@ const fmtTime = (iso: string) => isoToKst(iso).time
 const kstRange = (from: string, to: string) =>
   `from=${encodeURIComponent(`${from}T00:00:00+09:00`)}&to=${encodeURIComponent(`${to}T23:59:59+09:00`)}`
 const fmtPrice = (n: number) => n.toLocaleString() + '원'
+
+/* 회원 = 선불충전금(실제+보너스) 잔액 보유 */
+const prepaidOf = (r: Reservation) => (r.customer?.prepaid_cash ?? 0) + (r.customer?.prepaid_bonus ?? 0)
+const isMember = (r: Reservation) => prepaidOf(r) > 0
+
+function MemberBadge({ r }: { r: Reservation }) {
+  return isMember(r)
+    ? <span className="text-[10px] font-700 px-2 py-0.5 rounded-full bg-brand-50 text-brand-600 border border-brand-100">🌸 회원</span>
+    : <span className="text-[10px] font-600 px-2 py-0.5 rounded-full bg-gray-100 text-gray-400">비회원</span>
+}
 
 const STATUS_LABEL = { scheduled: '예약', completed: '완료', cancelled: '취소' } as const
 const STATUS_COLOR = { scheduled: '#bc7659', completed: '#7c9a7e', cancelled: '#9ca3af' } as const
@@ -182,6 +194,8 @@ function ReservationDetail({ res, onClose, onStatusChange, onEdit, onComplete }:
         <div className="space-y-2 mb-4">
           <Row label="날짜/시간" value={`${kstDate(res.start_at)} ${fmtTime(res.start_at)} ~ ${fmtTime(res.end_at)}`} />
           <Row label="접수" value={res.source === 'external' ? '외부 예약' : '매장 등록'} />
+          <Row label="회원" value={isMember(res) ? `🌸 회원 (선불 잔액 ${fmtPrice(prepaidOf(res))})` : res.customer_id ? '비회원' : '비회원 (고객 미연결)'} />
+          {res.price_type && <Row label="적용가" value={res.price_type === 'member' ? '회원가' : '비회원가'} />}
           {res.product_name && <Row label="시술" value={`${res.product_name}${res.duration_min ? ` (${res.duration_min}분)` : ''}`} />}
           {res.price != null && <Row label="금액" value={fmtPrice(res.price)} />}
           {res.memo && <Row label="메모" value={res.memo} />}
@@ -273,7 +287,7 @@ function MonthCalendar({ year, month, reservations, closedDates, onDayClick }: {
               <div className="mt-0.5 space-y-0.5">
                 {rsvs.slice(0,2).map(r => (
                   <div key={r.id} className="text-[9px] leading-tight px-1 rounded truncate" style={{ background: STATUS_BG[r.status], color: STATUS_COLOR[r.status] }}>
-                    {fmtTime(r.start_at)} {r.customer_name}
+                    {fmtTime(r.start_at)} {isMember(r) && '🌸'}{r.customer_name}
                   </div>
                 ))}
                 {rsvs.length > 2 && <div className="text-[9px] text-gray-400 px-1">+{rsvs.length-2}건</div>}
@@ -502,6 +516,7 @@ export default function ReservationsClient({ initialReservations, initialDate, p
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-700 text-gray-800">{r.customer_name}</span>
                         <span className="text-[10px] font-700 px-2 py-0.5 rounded-full" style={{ background: STATUS_BG[r.status], color: STATUS_COLOR[r.status] }}>{STATUS_LABEL[r.status]}</span>
+                        <MemberBadge r={r} />
                         {r.source === 'external' && <span className="text-[10px] font-700 px-2 py-0.5 rounded-full bg-sky-50 text-sky-600">외부예약</span>}
                       </div>
                       {r.product_name && <p className="text-xs text-gray-500 mt-0.5">{r.product_name}</p>}
