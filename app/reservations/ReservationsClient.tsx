@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react'
 import BrandHeader from '@/components/BrandHeader'
 import { isoToKst, kstNow, addDays } from '@/lib/booking/time'
+import PaymentSheet from './PaymentSheet'
 
 interface Reservation {
   id: number
@@ -148,14 +149,16 @@ function ReservationForm({ initial, products, date, onSave, onCancel, editId }: 
 }
 
 /* ── 예약 상세 ── */
-function ReservationDetail({ res, onClose, onStatusChange, onEdit }: {
+function ReservationDetail({ res, onClose, onStatusChange, onEdit, onComplete }: {
   res: Reservation; onClose: () => void
   onStatusChange: (id: number, status: string) => Promise<void>
   onEdit: (r: Reservation) => void
+  onComplete: (r: Reservation) => void
 }) {
   const [changing, setChanging] = useState<string | null>(null)
 
   const change = async (status: string) => {
+    if (res.status === 'completed' && !confirm('완료된 예약입니다. 결제가 취소되고 선불 차감분이 복원됩니다. 계속할까요?')) return
     setChanging(status)
     await onStatusChange(res.id, status)
     setChanging(null)
@@ -185,8 +188,8 @@ function ReservationDetail({ res, onClose, onStatusChange, onEdit }: {
         </div>
         {res.status === 'scheduled' && (
           <div className="flex gap-2 mb-4">
-            <button onClick={() => change('completed')} disabled={!!changing} className="flex-1 py-2.5 rounded-xl text-sm font-700 text-white" style={{ background: '#7c9a7e' }}>
-              {changing === 'completed' ? '처리 중...' : '✓ 시술 완료'}
+            <button onClick={() => { onClose(); onComplete(res) }} disabled={!!changing} className="flex-1 py-2.5 rounded-xl text-sm font-700 text-white" style={{ background: '#7c9a7e' }}>
+              ✓ 시술 완료 · 결제
             </button>
             <button onClick={() => change('cancelled')} disabled={!!changing} className="flex-1 py-2.5 rounded-xl text-sm font-700 text-white bg-gray-400">
               {changing === 'cancelled' ? '처리 중...' : '✕ 예약 취소'}
@@ -304,6 +307,7 @@ export default function ReservationsClient({ initialReservations, initialDate, p
   const [editTarget, setEditTarget] = useState<Reservation | null>(null)
   const [detailTarget, setDetailTarget] = useState<Reservation | null>(null)
   const [closedDates, setClosedDates] = useState<ClosedDate[]>([])
+  const [payTarget, setPayTarget] = useState<Reservation | null>(null)
 
   const loadClosed = useCallback(async (from: string, to: string) => {
     const data = await fetch(`/api/closed-dates?from=${from}&to=${to}`).then(r => r.json())
@@ -520,7 +524,7 @@ export default function ReservationsClient({ initialReservations, initialDate, p
         )}
       </div>
 
-      {!showForm && !detailTarget && (
+      {!showForm && !detailTarget && !payTarget && (
         <button onClick={() => { setEditTarget(null); setShowForm(true) }} className="fixed right-5 bottom-14 w-14 h-14 rounded-full shadow-lg flex items-center justify-center text-white text-2xl transition-transform active:scale-90 z-30" style={{ background: 'linear-gradient(135deg, #bc7659, #cb9175)' }}>+</button>
       )}
 
@@ -528,8 +532,16 @@ export default function ReservationsClient({ initialReservations, initialDate, p
         <ReservationForm initial={editInitial} products={formProducts} date={currentDate} onSave={handleSave} onCancel={() => { setShowForm(false); setEditTarget(null) }} editId={editTarget?.id} />
       )}
 
+      {payTarget && (
+        <PaymentSheet reservation={payTarget} onCancel={() => setPayTarget(null)} onDone={() => {
+          setPayTarget(null)
+          loadDay(currentDate)
+          if (view === 'month') loadMonth(currentYear, currentMonth)
+        }} />
+      )}
+
       {detailTarget && (
-        <ReservationDetail res={detailTarget} onClose={() => setDetailTarget(null)} onStatusChange={handleStatusChange} onEdit={(r) => { setDetailTarget(null); setEditTarget(r); setShowForm(true) }} />
+        <ReservationDetail res={detailTarget} onClose={() => setDetailTarget(null)} onStatusChange={handleStatusChange} onEdit={(r) => { setDetailTarget(null); setEditTarget(r); setShowForm(true) }} onComplete={setPayTarget} />
       )}
     </div>
   )

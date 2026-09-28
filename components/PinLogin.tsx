@@ -1,72 +1,56 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useCallback } from 'react'
 
-const CORRECT_PIN = '9994'
-const STORAGE_KEY = 'sh_shop_auth'
-const EXPIRES_MS = 30 * 24 * 60 * 60 * 1000 // 1개월
-
-function isAuthenticated(): boolean {
-  if (typeof window === 'undefined') return false
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return false
-    const { expiresAt } = JSON.parse(raw)
-    return Date.now() < expiresAt
-  } catch {
-    return false
-  }
-}
-
-function saveAuth() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({ expiresAt: Date.now() + EXPIRES_MS }))
-}
-
-export default function PasswordGate({ children }: { children: React.ReactNode }) {
-  const [authed, setAuthed] = useState<boolean | null>(null)
+/* PIN 키패드 로그인 — 서버에서 PIN 검증 후 세션 쿠키 발급 */
+export default function PinLogin({ next }: { next: string }) {
   const [pin, setPin] = useState('')
-  const [error, setError] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [shake, setShake] = useState(false)
+  const [busy, setBusy] = useState(false)
 
-  useEffect(() => {
-    setAuthed(isAuthenticated())
-  }, [])
+  const submit = useCallback(async (value: string) => {
+    setBusy(true)
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pin: value }),
+    }).catch(() => null)
+    if (res?.ok) {
+      // 서버 컴포넌트가 새 쿠키로 다시 렌더되도록 전체 이동
+      window.location.replace(next.startsWith('/') && !next.startsWith('//') ? next : '/')
+      return
+    }
+    const data = await res?.json().catch(() => null)
+    setBusy(false)
+    setError(data?.error ?? '로그인에 실패했습니다')
+    setShake(true)
+    setTimeout(() => { setShake(false); setPin('') }, 700)
+  }, [next])
 
   const handleKey = useCallback((digit: string) => {
+    if (busy) return
     if (error) {
-      setError(false)
+      setError(null)
       setPin('')
       return
     }
     setPin(prev => {
-      const next = prev + digit
-      if (next.length === 4) {
-        if (next === CORRECT_PIN) {
-          saveAuth()
-          setTimeout(() => setAuthed(true), 300)
-          return next
-        } else {
-          setError(true)
-          setShake(true)
-          setTimeout(() => { setShake(false); setPin('') }, 700)
-          return next
-        }
-      }
-      return next
+      if (prev.length >= 4) return prev
+      const value = prev + digit
+      if (value.length === 4) submit(value)
+      return value
     })
-  }, [error])
+  }, [error, busy, submit])
 
   const handleDelete = useCallback(() => {
-    if (error) { setError(false); setPin(''); return }
+    if (error) { setError(null); setPin(''); return }
     setPin(prev => prev.slice(0, -1))
   }, [error])
 
-  if (authed === null) return null
-  if (authed) return <>{children}</>
-
   const dots = Array.from({ length: 4 }, (_, i) => ({
     filled: i < pin.length,
-    error,
+    error: !!error,
   }))
 
   return (
@@ -102,7 +86,7 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
         <div className="h-6 mb-6 flex items-center">
           {error && (
             <p className="text-sm font-semibold text-red-500 animate-pulse">
-              🚫 접근 권한이 없습니다
+              🚫 {error}
             </p>
           )}
         </div>

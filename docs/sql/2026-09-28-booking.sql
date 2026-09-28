@@ -90,3 +90,8 @@ update sh_shop_reservations set customer_phone = regexp_replace(customer_phone, 
   where customer_phone ~ '^[0-9 +()-]+$' and regexp_replace(customer_phone, '[^0-9]', '', 'g') ~ '^01[016789][0-9]{7,8}$';
 update sh_shop_reservations r set customer_id = c.id
   from sh_shop_customers c where r.customer_id is null and r.customer_phone = c.phone;
+
+-- 새 테이블 RLS 활성화 (정책 없음 = anon 차단, service role 만 접근)
+alter table sh_shop_closed_dates enable row level security;
+alter table sh_shop_customer_history enable row level security;
+alter table sh_shop_prepaid_ledger enable row level security;

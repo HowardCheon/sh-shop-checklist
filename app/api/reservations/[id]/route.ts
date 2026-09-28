@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { blockTimes, findConflict, linkCustomer, recordCustomerHistory } from '@/lib/booking/admin'
+import { voidReservationPayments } from '@/lib/payments'
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -58,6 +59,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   }
 
   const { data, error } = await supabase.from('sh_shop_reservations').update(updates).eq('id', id).select().single()
+  if (!error && existing.status === 'completed' && data.status !== 'completed') {
+    // 완료 → 취소/복원: 결제 취소 및 선불 차감분 복원
+    const voided = await voidReservationPayments(Number(id))
+    if (voided > 0) changes.push(`결제 ${voided}건 취소(선불 복원)`)
+  }
   if (error?.code === '23P01') return NextResponse.json({ error: '예약 시간 충돌' }, { status: 409 })
   if (error) return NextResponse.json({ error: '수정 실패' }, { status: 500 })
 

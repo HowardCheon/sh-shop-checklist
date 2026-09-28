@@ -13,6 +13,18 @@ export function bonusFor(amount: number): number {
   return tier.bonus
 }
 
+/**
+ * 선불 차감 분배 — 차감 시점 잔액 비율(실제:보너스), 보너스 몫 내림.
+ * DB 함수 sh_shop_pay 와 같은 공식 (결제창 미리보기용)
+ */
+export function splitDeduction(amount: number, cash: number, bonus: number) {
+  const total = cash + bonus
+  const use = Math.min(amount, total)
+  if (use <= 0) return { cash: 0, bonus: 0, other: amount }
+  const bonusPart = use === total ? bonus : Math.floor((use * bonus) / total)
+  return { cash: use - bonusPart, bonus: bonusPart, other: amount - use }
+}
+
 /** 선불충전금(실제+보너스) 잔액이 있으면 회원 */
 export function isMember(customer: { prepaid_cash: number | null; prepaid_bonus: number | null } | null | undefined): boolean {
   if (!customer) return false

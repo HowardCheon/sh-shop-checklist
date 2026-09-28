@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import { Noto_Sans_KR, Nanum_Myeongjo } from 'next/font/google'
 import './globals.css'
-import PasswordGate from '@/components/PasswordGate'
 import BottomNav from '@/components/BottomNav'
 
 const font = Noto_Sans_KR({
@@ -32,10 +31,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="ko" className={serif.variable}>
       <body className={font.className}>
-        <PasswordGate>
-          <div className="pb-10">{children}</div>
-          <BottomNav />
-        </PasswordGate>
+        <div className="pb-10">{children}</div>
+        <BottomNav />
       </body>
     </html>
   )

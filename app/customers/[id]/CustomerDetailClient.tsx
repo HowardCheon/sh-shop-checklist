@@ -1,14 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import PrepaidPanel from './PrepaidPanel'
 import { calcStats, fmtDate, fmtTime, fmtPrice, STATUS_LABEL, STATUS_COLOR, STATUS_BG, type Customer, type CustomerHistory } from '../customer-utils'
 
-const CHARGE_OPTIONS = [
-  { amount: 500000, label: '50만', bonus: 0 },
-  { amount: 1000000, label: '100만', bonus: 100000 },
-  { amount: 2000000, label: '200만', bonus: 250000 },
-]
 
 /* ── 고객 상세 페이지 ── */
 export default function CustomerDetailClient({ initialCustomer, initialHistory }: { initialCustomer: Customer; initialHistory: CustomerHistory[] }) {
@@ -19,10 +15,8 @@ export default function CustomerDetailClient({ initialCustomer, initialHistory }
   const [saving, setSaving] = useState(false)
   const [confirmDel, setConfirmDel] = useState(false)
   const [history, setHistory] = useState(initialHistory)
-  const [charging, setCharging] = useState<number | null>(null)
   const stats = calcStats(customer)
-  const cash = customer.prepaid_cash ?? 0
-  const bonus = customer.prepaid_bonus ?? 0
+  const onHistory = useCallback((h: CustomerHistory[]) => setHistory(h), [])
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm(f => ({ ...f, [k]: e.target.value }))
@@ -38,17 +32,6 @@ export default function CustomerDetailClient({ initialCustomer, initialHistory }
     const saved = await res.json()
     setCustomer(c => ({ ...c, ...saved }))
     setEditing(false)
-  }
-
-  const handleCharge = async (opt: typeof CHARGE_OPTIONS[number]) => {
-    if (!confirm(`${opt.label}원 충전${opt.bonus ? ` (보너스 ${opt.bonus / 10000}만원)` : ''}을 기록할까요?`)) return
-    setCharging(opt.amount); setErr('')
-    const res = await fetch(`/api/customers/${customer.id}/charge`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ amount: opt.amount }) })
-    const data = await res.json()
-    setCharging(null)
-    if (!res.ok) { setErr(data.error ?? '충전에 실패했습니다'); return }
-    setCustomer(c => ({ ...c, ...data.customer }))
-    if (data.history) setHistory(h => [data.history, ...h])
   }
 
   const handleDelete = async () => {
@@ -103,24 +86,7 @@ export default function CustomerDetailClient({ initialCustomer, initialHistory }
           ))}
         </div>
 
-        <div className="bg-white/85 rounded-2xl border border-brand-100 p-3 mb-4">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-700 text-gray-400">선불 충전금</p>
-            <span className={`text-[10px] font-700 px-2 py-0.5 rounded-full ${cash + bonus > 0 ? 'bg-brand-500 text-white' : 'bg-gray-100 text-gray-400'}`}>
-              {cash + bonus > 0 ? '회원' : '비회원'}
-            </span>
-          </div>
-          <p className="font-serif text-xl font-extrabold text-brand-700 mt-1">{fmtPrice(cash + bonus)}</p>
-          <p className="text-[11px] text-gray-400">실제 {fmtPrice(cash)} · 보너스 {fmtPrice(bonus)}</p>
-          <div className="flex gap-1.5 mt-2">
-            {CHARGE_OPTIONS.map(opt => (
-              <button key={opt.amount} onClick={() => handleCharge(opt)} disabled={charging !== null} className="flex-1 py-1.5 rounded-lg text-xs font-600 text-brand-600 bg-brand-50 border border-brand-100 disabled:opacity-40">
-                {charging === opt.amount ? '...' : `+${opt.label}`}
-                {opt.bonus > 0 && <span className="block text-[9px] text-brand-400">보너스 {opt.bonus / 10000}만</span>}
-              </button>
-            ))}
-          </div>
-        </div>
+        <PrepaidPanel customerId={customer.id} initialCash={customer.prepaid_cash ?? 0} initialBonus={customer.prepaid_bonus ?? 0} onHistory={onHistory} />
 
         {stats.lastVisit && <p className="text-xs text-gray-400 mb-3">마지막 방문: {fmtDate(stats.lastVisit)}</p>}
 

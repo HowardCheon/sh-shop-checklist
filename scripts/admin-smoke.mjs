@@ -1,33 +1,10 @@
 // 관리자 API 점검 — 사용법: node scripts/admin-smoke.mjs [baseUrl]
 // 테스트 전화번호 010-9999-00xx 데이터를 만들고, 마지막에 정리한다.
-import fs from 'node:fs'
+import { adminClient, check, cleanupTestData, finish, sql } from './smoke-lib.mjs'
 
-const env = Object.fromEntries(
-  fs.readFileSync('.env.local', 'utf8').split(/\r?\n/).map(l => l.match(/^([A-Z0-9_]+)=(.*)$/)).filter(Boolean).map(m => [m[1], m[2]]),
-)
 const BASE = process.argv[2] || 'http://localhost:3210'
-let failed = 0
-async function call(method, path, body) {
-  const res = await fetch(BASE + path, { method, headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined })
-  return { status: res.status, body: await res.json() }
-}
-function check(label, cond, detail) {
-  if (!cond) failed++
-  console.log(`${cond ? 'OK  ' : 'FAIL'} ${label}${cond ? '' : ' → ' + JSON.stringify(detail)}`)
-}
-async function sql(query) {
-  const res = await fetch(`https://api.supabase.com/v1/projects/${env.SUPABASE_PROJECT_REF}/database/query`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${env.SUPABASE_ACCESS_TOKEN}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query }),
-  })
-  return res.json()
-}
-async function cleanup() {
-  await sql(`delete from sh_shop_reservation_history where reservation_id in (select id from sh_shop_reservations where customer_phone like '0109999%');
-             delete from sh_shop_reservations where customer_phone like '0109999%';
-             delete from sh_shop_customers where phone like '0109999%';`)
-}
+const call = await adminClient(BASE)
+const cleanup = cleanupTestData
 
 const day = new Date(Date.now() + 9 * 3600e3 + 10 * 86400e3).toISOString().slice(0, 10)
 await cleanup()
@@ -63,8 +40,6 @@ try {
   await call('DELETE', `/api/closed-dates?date=${day}`)
   check('휴무일 지정/조회/해제', r.status === 200 && list.body.length === 1, list)
 } finally {
-  await sql(`delete from sh_shop_prepaid_ledger where customer_id in (select id from sh_shop_customers where phone like '0109999%')`)
   await cleanup()
 }
-console.log(failed ? `\n${failed}건 실패` : '\n전체 통과')
-process.exit(failed ? 1 : 0)
+finish()
