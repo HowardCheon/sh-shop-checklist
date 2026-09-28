@@ -6,7 +6,7 @@ import { voidReservationPayments, paymentErrorResponse } from '@/lib/payments'
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const [resRes, histRes] = await Promise.all([
-    supabase.from('sh_shop_reservations').select('*, customer:sh_shop_customers(prepaid_cash, prepaid_bonus)').eq('id', id).single(),
+    supabase.from('sh_shop_reservations').select('*, customer:sh_shop_customers(prepaid_cash, prepaid_bonus), product:sh_shop_products(price, member_price)').eq('id', id).single(),
     supabase.from('sh_shop_reservation_history').select('*').eq('reservation_id', id).order('changed_at', { ascending: true }),
   ])
   if (resRes.error) return NextResponse.json({ error: '조회 실패' }, { status: 404 })

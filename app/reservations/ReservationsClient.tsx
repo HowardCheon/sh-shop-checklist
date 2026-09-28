@@ -4,6 +4,7 @@ import { useState, useCallback } from 'react'
 import BrandHeader from '@/components/BrandHeader'
 import { isoToKst, kstNow, addDays } from '@/lib/booking/time'
 import PaymentSheet from './PaymentSheet'
+import { effectivePrice } from '@/lib/booking/pricing'
 
 interface Reservation {
   id: number
@@ -20,6 +21,7 @@ interface Reservation {
   source?: 'admin' | 'external'
   price_type?: 'member' | 'regular' | null
   customer?: { prepaid_cash: number; prepaid_bonus: number } | null
+  product?: { price: number; member_price: number | null } | null
   memo: string | null
   history?: HistoryItem[]
 }
@@ -54,10 +56,35 @@ const fmtPrice = (n: number) => n.toLocaleString() + '원'
 const prepaidOf = (r: Reservation) => (r.customer?.prepaid_cash ?? 0) + (r.customer?.prepaid_bonus ?? 0)
 const isMember = (r: Reservation) => prepaidOf(r) > 0
 
+const CHANGED_LABEL = { to_member: '비회원 예약 → 회원가', to_regular: '회원 예약 → 비회원가' } as const
+const CHANGED_DETAIL = { to_member: '비회원으로 예약 후 회원가로 변경됨', to_regular: '회원으로 예약 후 비회원가로 변경됨' } as const
+
+/* 예약 후 회원 여부가 바뀌면 현재 기준 가격 + 변경 표시 */
+function PriceChange({ r, detail, hideLabel }: { r: Reservation; detail?: boolean; hideLabel?: boolean }) {
+  const p = effectivePrice(r)
+  if (p.price == null) return null
+  if (!p.changed) return <span>{fmtPrice(p.price)}</span>
+  return (
+    <span className={`inline-flex flex-col ${detail ? 'items-start' : 'items-end'}`}>
+      <span className="font-700 text-brand-600">{fmtPrice(p.price)}</span>
+      {p.bookedPrice != null && <span className="text-[10px] text-gray-400 line-through">{fmtPrice(p.bookedPrice)}</span>}
+      {!hideLabel && <ChangeLabel changed={p.changed} detail={detail} />}
+    </span>
+  )
+}
+
+function ChangeLabel({ changed, detail }: { changed: 'to_member' | 'to_regular'; detail?: boolean }) {
+  return (
+    <span className={`inline-block text-[10px] font-700 px-1.5 rounded whitespace-nowrap ${changed === 'to_member' ? 'bg-brand-50 text-brand-600' : 'bg-gray-100 text-gray-500'}`}>
+      {(detail ? CHANGED_DETAIL : CHANGED_LABEL)[changed]}
+    </span>
+  )
+}
+
 function MemberBadge({ r }: { r: Reservation }) {
   return isMember(r)
-    ? <span className="text-[10px] font-700 px-2 py-0.5 rounded-full bg-brand-50 text-brand-600 border border-brand-100">🌸 회원</span>
-    : <span className="text-[10px] font-600 px-2 py-0.5 rounded-full bg-gray-100 text-gray-400">비회원</span>
+    ? <span className="text-[10px] font-700 px-2 py-0.5 rounded-full bg-brand-50 text-brand-600 border border-brand-100 whitespace-nowrap">🌸 회원</span>
+    : <span className="text-[10px] font-600 px-2 py-0.5 rounded-full bg-gray-100 text-gray-400 whitespace-nowrap">비회원</span>
 }
 
 const STATUS_LABEL = { scheduled: '예약', completed: '완료', cancelled: '취소' } as const
@@ -195,9 +222,14 @@ function ReservationDetail({ res, onClose, onStatusChange, onEdit, onComplete }:
           <Row label="날짜/시간" value={`${kstDate(res.start_at)} ${fmtTime(res.start_at)} ~ ${fmtTime(res.end_at)}`} />
           <Row label="접수" value={res.source === 'external' ? '외부 예약' : '매장 등록'} />
           <Row label="회원" value={isMember(res) ? `🌸 회원 (선불 잔액 ${fmtPrice(prepaidOf(res))})` : res.customer_id ? '비회원' : '비회원 (고객 미연결)'} />
-          {res.price_type && <Row label="적용가" value={res.price_type === 'member' ? '회원가' : '비회원가'} />}
+          {res.price_type && <Row label="예약 시" value={res.price_type === 'member' ? '회원가로 예약' : '비회원가로 예약'} />}
           {res.product_name && <Row label="시술" value={`${res.product_name}${res.duration_min ? ` (${res.duration_min}분)` : ''}`} />}
-          {res.price != null && <Row label="금액" value={fmtPrice(res.price)} />}
+          {res.price != null && (
+            <div className="flex gap-2">
+              <span className="text-xs text-gray-400 w-16 shrink-0">금액</span>
+              <span className="text-xs text-gray-700"><PriceChange r={res} detail /></span>
+            </div>
+          )}
           {res.memo && <Row label="메모" value={res.memo} />}
         </div>
         {res.status === 'scheduled' && (
@@ -512,20 +544,21 @@ export default function ReservationsClient({ initialReservations, initialDate, p
               {reservations.map(r => (
                 <button key={r.id} onClick={() => openDetail(r)} className="w-full text-left bg-white/85 rounded-2xl border border-l-4 p-4 shadow-sm" style={{ borderColor: STATUS_COLOR[r.status] + '40', borderLeftColor: STATUS_COLOR[r.status] }}>
                   <div className="flex items-start justify-between">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-700 text-gray-800">{r.customer_name}</span>
-                        <span className="text-[10px] font-700 px-2 py-0.5 rounded-full" style={{ background: STATUS_BG[r.status], color: STATUS_COLOR[r.status] }}>{STATUS_LABEL[r.status]}</span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
+                        <span className="text-sm font-700 text-gray-800 whitespace-nowrap">{r.customer_name}</span>
+                        <span className="text-[10px] font-700 px-2 py-0.5 rounded-full whitespace-nowrap" style={{ background: STATUS_BG[r.status], color: STATUS_COLOR[r.status] }}>{STATUS_LABEL[r.status]}</span>
                         <MemberBadge r={r} />
-                        {r.source === 'external' && <span className="text-[10px] font-700 px-2 py-0.5 rounded-full bg-sky-50 text-sky-600">외부예약</span>}
+                        {r.source === 'external' && <span className="text-[10px] font-700 px-2 py-0.5 rounded-full bg-sky-50 text-sky-600 whitespace-nowrap">외부예약</span>}
                       </div>
                       {r.product_name && <p className="text-xs text-gray-500 mt-0.5">{r.product_name}</p>}
+                      {(() => { const c = effectivePrice(r).changed; return c && <p className="mt-1"><ChangeLabel changed={c} /></p> })()}
                       {r.memo && <p className="text-xs text-gray-400 mt-0.5 truncate">{r.memo}</p>}
                     </div>
                     <div className="text-right shrink-0 ml-2">
                       <p className="font-serif text-base font-extrabold" style={{ color: STATUS_COLOR[r.status] }}>{fmtTime(r.start_at)}</p>
                       <p className="text-xs text-gray-400">~ {fmtTime(r.end_at)}</p>
-                      {r.price != null && <p className="text-xs text-gray-500 mt-0.5">{fmtPrice(r.price)}</p>}
+                      {r.price != null && <p className="text-xs text-gray-500 mt-0.5"><PriceChange r={r} hideLabel /></p>}
                     </div>
                   </div>
                 </button>
@@ -548,7 +581,7 @@ export default function ReservationsClient({ initialReservations, initialDate, p
       )}
 
       {payTarget && (
-        <PaymentSheet reservation={payTarget} onCancel={() => setPayTarget(null)} onDone={() => {
+        <PaymentSheet reservation={{ ...payTarget, price: effectivePrice(payTarget).price }} onCancel={() => setPayTarget(null)} onDone={() => {
           setPayTarget(null)
           loadDay(currentDate)
           if (view === 'month') loadMonth(currentYear, currentMonth)

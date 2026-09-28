@@ -12,7 +12,7 @@ export default async function HomePage() {
   const to   = `${kstToday}T23:59:59+09:00`
 
   const [resResult, prodResult] = await Promise.all([
-    supabase.from('sh_shop_reservations').select('*, customer:sh_shop_customers(prepaid_cash, prepaid_bonus)').gte('start_at', from).lte('start_at', to).order('start_at'),
+    supabase.from('sh_shop_reservations').select('*, customer:sh_shop_customers(prepaid_cash, prepaid_bonus), product:sh_shop_products(price, member_price)').gte('start_at', from).lte('start_at', to).order('start_at'),
     supabase.from('sh_shop_products').select('*').eq('category', 'service').eq('is_active', true).order('sort_order').order('created_at'),
   ])
 
