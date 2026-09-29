@@ -13,6 +13,23 @@ const kstLabel = (at: Date) => {
   return `${k.getUTCMonth() + 1}월 ${k.getUTCDate()}일 ${String(k.getUTCHours()).padStart(2, '0')}:${String(k.getUTCMinutes()).padStart(2, '0')}`
 }
 
+export const SMS_UNIT_COST = 18 // 단문 1건 (원/포인트)
+export const LOW_BALANCE = 3000
+
+/** 매일 잔액 보고 메시지 (충전금+포인트 합계가 기준 미만이면 경고) */
+export function balanceMessage(r: { balance?: number; point?: number; error?: string; at: Date }) {
+  const day = kstLabel(r.at).split(' ').slice(0, 2).join(' ')
+  if (r.error !== undefined) return `💰 <b>솔라피 잔액</b> (${day})\n⚠ 잔액 조회 실패: ${escape(r.error)}`
+  const total = (r.balance ?? 0) + (r.point ?? 0)
+  const lines = [
+    `💰 <b>솔라피 잔액</b> (${day})`,
+    `충전금 ${(r.balance ?? 0).toLocaleString('ko-KR')}원 · 포인트 ${(r.point ?? 0).toLocaleString('ko-KR')}`,
+    `예상 발송 가능: 인증 문자 약 ${Math.floor(total / SMS_UNIT_COST).toLocaleString('ko-KR')}건`,
+  ]
+  if (total < LOW_BALANCE) lines.push(`⚠ 충전이 필요해요 (기준 ${LOW_BALANCE.toLocaleString('ko-KR')}원 미만). 잔액이 없으면 고객 인증번호가 발송되지 않아요.`)
+  return lines.join('\n')
+}
+
 export function smsFailureMessage(r: { phone: string; reason: string; at: Date; suppressed: number }) {
   return [
     '⚠️ <b>SMS 발송 실패</b>',

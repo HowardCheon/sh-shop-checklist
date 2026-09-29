@@ -16,6 +16,24 @@ export function smsConfigured() {
   return !!(process.env.SOLAPI_API_KEY && process.env.SOLAPI_API_SECRET && process.env.SOLAPI_SENDER)
 }
 
+/** 계정 잔액 조회 — 충전금(balance)·포인트(point) */
+export async function getBalance(): Promise<{ balance: number; point: number } | { error: string }> {
+  const key = process.env.SOLAPI_API_KEY
+  const secret = process.env.SOLAPI_API_SECRET
+  if (!key || !secret) return { error: '솔라피 설정(SOLAPI_*) 없음' }
+  try {
+    const res = await fetch(`${BASE}/cash/v1/balance`, {
+      headers: { Authorization: authHeader(key, secret, new Date().toISOString(), randomBytes(16).toString('hex')) },
+      signal: AbortSignal.timeout(10000),
+    })
+    const data = await res.json().catch(() => null)
+    if (!res.ok || typeof data?.balance !== 'number') return { error: failReason(res.status, data) }
+    return { balance: data.balance, point: data.point ?? 0 }
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : '네트워크 오류' }
+  }
+}
+
 export type SmsResult = { ok: true } | { ok: false; reason: string }
 
 /** 솔라피 응답에서 사람이 읽을 실패 사유 추출 */

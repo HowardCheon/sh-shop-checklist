@@ -1,5 +1,24 @@
 import { describe, it, expect } from 'vitest'
-import { createSmsFailureAlerter, smsFailureMessage } from '../alerts'
+import { createSmsFailureAlerter, smsFailureMessage, balanceMessage } from '../alerts'
+
+describe('솔라피 잔액 보고', () => {
+  const at = new Date('2026-09-30T00:00:00Z') // 09:00 KST
+  it('충전금·포인트·예상 건수, 부족 시 경고', () => {
+    const text = balanceMessage({ balance: 0, point: 282, at })
+    expect(text).toContain('💰 <b>솔라피 잔액</b> (9월 30일)')
+    expect(text).toContain('충전금 0원 · 포인트 282')
+    expect(text).toContain('인증 문자 약 15건')
+    expect(text).toContain('⚠ 충전이 필요해요')
+  })
+  it('충분하면 경고 없음', () => {
+    const text = balanceMessage({ balance: 50000, point: 0, at })
+    expect(text).toContain('인증 문자 약 2,777건')
+    expect(text).not.toContain('⚠')
+  })
+  it('조회 실패 메시지', () => {
+    expect(balanceMessage({ error: 'HTTP 401', at })).toContain('잔액 조회 실패: HTTP 401')
+  })
+})
 
 describe('SMS 실패 알림', () => {
   it('메시지: 번호 가림, 사유 이스케이프, 추가 실패 건수', () => {
