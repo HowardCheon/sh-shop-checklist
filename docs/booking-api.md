@@ -25,6 +25,18 @@
 - 수정/취소: **SMS 인증 도입 전까지 온라인 불가, 전화로만** (`BOOKING_ONLINE_CHANGE=true` 로 켜면 예약일 전날까지 온라인 가능)
 - 회원(선불충전금 보유) 은 회원가, 그 외 비회원가 자동 적용
 
+## 휴대폰 인증 (SMS)
+
+솔라피 설정(`SOLAPI_*`)이 있으면 휴대폰 번호를 쓰는 모든 요청에 `verification_token` 이 필요합니다.
+(GET 은 쿼리 `verification_token=`, POST/PATCH 는 본문 필드)
+
+- `POST /verifications` `{ phone }` → SMS 4자리 발송. `{ expires_in: 180, resend_after: 60 }`
+  - 같은 번호 1분 1회·1시간 5회, 오류 `TOO_MANY_REQUESTS`(429), 발송 실패 `SMS_FAILED`(502)
+- `POST /verifications/confirm` `{ phone, code }` → `{ verification_token, expires_in: 1800 }`
+  - 틀리면 `CODE_MISMATCH`(남은 횟수 안내), 5회 초과·만료·재사용은 `CODE_EXPIRED`
+- 토큰 없음/만료/다른 번호 → `VERIFICATION_REQUIRED`(401)
+- 인증 사용 시 `GET /reservations` 는 이름 없이 조회, `BOOKING_ONLINE_CHANGE=true` 면 예약 전날까지 온라인 변경·취소 가능
+
 ## 엔드포인트
 
 ### GET /programs

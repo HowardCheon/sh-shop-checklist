@@ -11,6 +11,11 @@ export type BookingErrorCode =
   | 'NOT_FOUND'
   | 'SAME_DAY_LOCKED'
   | 'CHANGE_BY_PHONE'
+  | 'VERIFICATION_REQUIRED'
+  | 'CODE_MISMATCH'
+  | 'CODE_EXPIRED'
+  | 'TOO_MANY_REQUESTS'
+  | 'SMS_FAILED'
   | 'INTERNAL'
 
 const STATUS: Record<BookingErrorCode, number> = {
@@ -26,6 +31,11 @@ const STATUS: Record<BookingErrorCode, number> = {
   NOT_FOUND: 404,
   SAME_DAY_LOCKED: 403,
   CHANGE_BY_PHONE: 403,
+  VERIFICATION_REQUIRED: 401,
+  CODE_MISMATCH: 400,
+  CODE_EXPIRED: 400,
+  TOO_MANY_REQUESTS: 429,
+  SMS_FAILED: 502,
   INTERNAL: 500,
 }
 

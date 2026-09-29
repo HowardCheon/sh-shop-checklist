@@ -1,7 +1,8 @@
 /* 외부 예약 유스케이스 */
 import { fits, programsAt, timesFor as dayTimes } from './availability'
 import { BookingError } from './errors'
-import { maskName, verifyPhoneOwnership } from './phone'
+import { maskName } from './phone'
+import { requireVerifiedPhone, verificationEnabled } from './verification'
 import { isMember } from './prepaid'
 import * as repo from './repo'
 import type { ProgramRow, ReservationRow } from './repo'
@@ -11,9 +12,9 @@ import { isValidDate, isoToKst, kstToIso } from './time'
 const MAX_NAME = 30
 const SHOP_TEL = '010-2475-9859'
 
-/** 고객의 온라인 변경·취소 허용 여부 — SMS 본인인증 도입 전까지는 꺼 둠(전화로만 처리) */
+/** 고객의 온라인 변경·취소 허용 여부 — 휴대폰 인증이 켜져 있고 BOOKING_ONLINE_CHANGE=true 일 때만 */
 function onlineChangeEnabled() {
-  return process.env.BOOKING_ONLINE_CHANGE === 'true'
+  return process.env.BOOKING_ONLINE_CHANGE === 'true' && verificationEnabled()
 }
 const MAX_MESSAGE = 500
 
@@ -105,8 +106,8 @@ function timesFor(date: string, time: string, durationMin: number) {
 }
 
 /** 전화번호 소유 확인 후 해당 고객의 예약인지 검사 (불일치 시 존재 여부 비노출) */
-async function loadOwnReservation(id: unknown, input: { phone?: unknown }) {
-  const phone = verifyPhoneOwnership(input)
+async function loadOwnReservation(id: unknown, input: { phone?: unknown; verification_token?: unknown }) {
+  const phone = await requireVerifiedPhone(input)
   const reservation = await repo.getReservation(toId(id, '예약 id'))
   const customer = await repo.findCustomerByPhone(phone)
   const owned = reservation && (
@@ -138,7 +139,7 @@ async function excludedId(input: { exclude?: unknown; phone?: unknown }): Promis
   return reservation.id
 }
 
-export async function getAvailability(dateInput: unknown, now = new Date(), opts: { exclude?: unknown; phone?: unknown } = {}) {
+export async function getAvailability(dateInput: unknown, now = new Date(), opts: { exclude?: unknown; phone?: unknown; verification_token?: unknown } = {}) {
   const date = requireDate(dateInput)
   const hours = businessHours(date)
   const closed = hours ? await repo.getClosedDate(date) : null
@@ -157,12 +158,12 @@ export async function getAvailability(dateInput: unknown, now = new Date(), opts
   }
 }
 
-export async function getProgramsAt(input: { date?: unknown; time?: unknown; phone?: unknown; exclude?: unknown }, now = new Date()) {
+export async function getProgramsAt(input: { date?: unknown; time?: unknown; phone?: unknown; exclude?: unknown; verification_token?: unknown }, now = new Date()) {
   const date = requireDate(input.date)
   const time = String(input.time ?? '')
   await assertStartAllowed(date, time, now)
 
-  const member = input.phone ? isMember(await repo.findCustomerByPhone(verifyPhoneOwnership(input))) : null
+  const member = input.phone ? isMember(await repo.findCustomerByPhone(await requireVerifiedPhone(input))) : null
   const [programs, blocks, exclude] = await Promise.all([repo.listPrograms(), repo.listBlocks(date), excludedId(input)])
   return {
     date,
@@ -176,8 +177,8 @@ export async function getProgramsAt(input: { date?: unknown; time?: unknown; pho
   }
 }
 
-export async function lookupCustomer(input: { phone?: unknown }) {
-  const customer = await repo.findCustomerByPhone(verifyPhoneOwnership(input))
+export async function lookupCustomer(input: { phone?: unknown; verification_token?: unknown }) {
+  const customer = await repo.findCustomerByPhone(await requireVerifiedPhone(input))
   return {
     exists: !!customer,
     is_member: isMember(customer),
@@ -186,12 +187,14 @@ export async function lookupCustomer(input: { phone?: unknown }) {
 }
 
 /** 예약 조회 — 이름과 휴대폰 번호가 모두 일치하는 예약만 (불일치 시 빈 목록으로 존재 여부 비노출) */
-export async function listReservations(input: { phone?: unknown; name?: unknown }, now = new Date()) {
-  const phone = verifyPhoneOwnership(input)
-  const name = cleanName(input.name)
-  const sameName = (v: string | null | undefined) => !!v && v.replace(/\s/g, '') === name.replace(/\s/g, '')
+export async function listReservations(input: { phone?: unknown; name?: unknown; verification_token?: unknown }, now = new Date()) {
+  const phone = await requireVerifiedPhone(input)
   const customer = await repo.findCustomerByPhone(phone)
   const rows = await repo.listUpcomingReservations(customer?.id ?? null, phone, now.toISOString())
+  // 휴대폰 인증을 쓰면 인증만으로 조회, 아니면 이름+번호 일치
+  if (verificationEnabled()) return rows.map(r => reservationDto(r, now))
+  const name = cleanName(input.name)
+  const sameName = (v: string | null | undefined) => !!v && v.replace(/\s/g, '') === name.replace(/\s/g, '')
   return rows.filter(r => sameName(r.customer_name) || sameName(customer?.name)).map(r => reservationDto(r, now))
 }
 
@@ -205,7 +208,7 @@ function assertOnlineChange() {
 
 export async function createReservation(input: Record<string, unknown>, now = new Date()) {
   const name = cleanName(input.name)
-  const phone = verifyPhoneOwnership(input)
+  const phone = await requireVerifiedPhone(input)
   const message = cleanMessage(input.message)
   const date = requireDate(input.date)
   const time = String(input.time ?? '')
