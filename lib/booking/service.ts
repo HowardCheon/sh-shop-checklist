@@ -251,7 +251,7 @@ export async function createReservation(input: Record<string, unknown>, now = ne
     newValue: row,
   })
 
-  return { ...reservationDto(row, now), is_member: member }
+  return { ...reservationDto(row, now), is_member: member, new_customer: created }
 }
 
 /* ── 수정 / 취소 ─────────────────────────────────── */
