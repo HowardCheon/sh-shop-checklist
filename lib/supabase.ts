@@ -10,7 +10,7 @@ export const supabase = supabaseServiceKey
 
 export async function runSQL(query: string) {
   const accessToken = process.env.SUPABASE_ACCESS_TOKEN
-  const projectRef = process.env.SUPABASE_PROJECT_REF || 'jzrdajrymxxwmeizxyck'
+  const projectRef = process.env.SUPABASE_PROJECT_REF || 'uehluxtuaotnezfnobhj'
 
   const res = await fetch(`https://api.supabase.com/v1/projects/${projectRef}/database/query`, {
     method: 'POST',

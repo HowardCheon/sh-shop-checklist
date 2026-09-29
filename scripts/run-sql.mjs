@@ -11,7 +11,7 @@ for (const f of ['.env.local', '.env']) {
 
 const arg = process.argv[2]
 const query = fs.existsSync(arg) ? fs.readFileSync(arg, 'utf8') : arg
-const ref = process.env.SUPABASE_PROJECT_REF || 'jzrdajrymxxwmeizxyck'
+const ref = process.env.SUPABASE_PROJECT_REF || 'uehluxtuaotnezfnobhj'
 const res = await fetch(`https://api.supabase.com/v1/projects/${ref}/database/query`, {
   method: 'POST',
   headers: { Authorization: `Bearer ${process.env.SUPABASE_ACCESS_TOKEN}`, 'Content-Type': 'application/json' },
