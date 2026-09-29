@@ -17,7 +17,8 @@ describe('관리자 세션', () => {
   it('서명을 바꾸거나 만료를 늘리면 무효', () => {
     const [exp, sig] = createSessionToken().split('.')
     expect(verifySessionToken(`${Number(exp) + 1000}.${sig}`)).toBe(false)
-    expect(verifySessionToken(`${exp}.${sig.slice(0, -1)}A`)).toBe(false)
+    const last = sig.slice(-1) === 'A' ? 'B' : 'A' // 항상 다른 글자로 변조
+    expect(verifySessionToken(`${exp}.${sig.slice(0, -1)}${last}`)).toBe(false)
     expect(verifySessionToken(undefined)).toBe(false)
   })
   it('비밀키가 바뀌면 기존 토큰 무효', () => {
