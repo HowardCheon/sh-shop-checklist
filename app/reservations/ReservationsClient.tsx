@@ -401,9 +401,10 @@ function MonthCalendar({ year, month, reservations, closedDates, onDayClick }: {
 }
 
 /* ── 메인 클라이언트 ── */
-export default function ReservationsClient({ initialReservations, initialDate, products }: {
+export default function ReservationsClient({ initialReservations, initialDate, openId, products }: {
   initialReservations: Reservation[]
   initialDate: string
+  openId?: number
   products: Product[]
 }) {
   const [view, setView] = useState<'day' | 'month'>('day')
@@ -529,10 +530,18 @@ export default function ReservationsClient({ initialReservations, initialDate, p
   }
 
   /* 상세 열기: 이력 포함 */
-  const openDetail = async (r: Reservation) => {
-    const data = await fetch(`/api/reservations/${r.id}`).then(d => d.json())
-    setDetailTarget(data)
+  const openDetail = async (r: Pick<Reservation, 'id'>) => {
+    const res = await fetch(`/api/reservations/${r.id}`)
+    if (res.ok) setDetailTarget(await res.json())
   }
+
+  // 알림 링크(?open=id)로 들어오면 예약 상세를 바로 열고, 주소는 깔끔하게 정리
+  useEffect(() => {
+    if (!openId) return
+    openDetail({ id: openId })
+    window.history.replaceState(null, '', `/?date=${initialDate}`)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openId])
 
   const today = kstNow().date
   const dateLabel = currentDate === today ? '오늘' :

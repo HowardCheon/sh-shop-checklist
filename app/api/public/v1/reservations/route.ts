@@ -13,7 +13,8 @@ export const GET = publicApi(async (req: NextRequest) => ({
 export const POST = publicApi(async (req: NextRequest) => {
   const body = await readJson(req)
   const r = await createReservation(body)
-  // 예약 성공 시에만, 응답을 보낸 뒤 원장님 텔레그램으로 알림
+  // 예약 성공 시에만, 응답을 보낸 뒤 원장님 텔레그램으로 알림 (+ 관리자 앱에서 바로 여는 버튼)
+  const adminUrl = process.env.ADMIN_BASE_URL || req.nextUrl.origin
   after(() => sendTelegram(newReservationMessage({
     name: r.customer_name,
     phone: normalizePhone(body.phone),
@@ -26,6 +27,6 @@ export const POST = publicApi(async (req: NextRequest) => {
     isMember: r.is_member,
     newCustomer: r.new_customer,
     message: r.message,
-  })))
+  }), { text: '📋 예약 확인하기', url: `${adminUrl}/?date=${r.date}&open=${r.id}` }))
   return r
 }, 201)

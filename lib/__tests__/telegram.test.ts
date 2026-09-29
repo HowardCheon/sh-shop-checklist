@@ -25,6 +25,13 @@ describe('sendTelegram (1순위 → 2순위)', () => {
     expect(await sendTelegram('hi')).toBe(false)
     expect(calls).toHaveLength(2)
   })
+  it('버튼을 주면 inline 버튼으로 붙인다', async () => {
+    setEnv()
+    const bodies: { reply_markup?: unknown }[] = []
+    vi.stubGlobal('fetch', vi.fn(async (_url: string, init: RequestInit) => { bodies.push(JSON.parse(String(init.body))); return new Response('{}', { status: 200 }) }))
+    await sendTelegram('hi', { text: '📋 예약 확인하기', url: 'https://x.test/?date=2026-10-06&open=1' })
+    expect(bodies[0].reply_markup).toEqual({ inline_keyboard: [[{ text: '📋 예약 확인하기', url: 'https://x.test/?date=2026-10-06&open=1' }]] })
+  })
   it('설정이 없으면 보내지 않는다', async () => {
     vi.stubEnv('TELEGRAM_PRIMARY_BOT_TOKEN', ''); vi.stubEnv('TELEGRAM_BOT_TOKEN', '')
     const f = vi.fn()

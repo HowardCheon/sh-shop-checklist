@@ -47,12 +47,20 @@ function targets() {
   ].filter((t): t is { label: string; token: string; chatId: string } => !!t.token && !!t.chatId)
 }
 
-async function sendOne(t: { label: string; token: string; chatId: string }, text: string) {
+export type TelegramButton = { text: string; url: string }
+
+async function sendOne(t: { label: string; token: string; chatId: string }, text: string, button?: TelegramButton) {
   try {
     const res = await fetch(`https://api.telegram.org/bot${t.token}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: t.chatId, text, parse_mode: 'HTML', disable_web_page_preview: true }),
+      body: JSON.stringify({
+        chat_id: t.chatId,
+        text,
+        parse_mode: 'HTML',
+        disable_web_page_preview: true,
+        ...(button ? { reply_markup: { inline_keyboard: [[button]] } } : {}),
+      }),
       signal: AbortSignal.timeout(8000),
     })
     if (!res.ok) console.error(`텔레그램(${t.label}) 발송 실패`, res.status, await res.text())
@@ -64,8 +72,8 @@ async function sendOne(t: { label: string; token: string; chatId: string }, text
 }
 
 /** 모든 대상에 순위대로 발송 — 한 곳이 실패해도 나머지는 계속, 예약 처리에는 영향 없음 */
-export async function sendTelegram(text: string) {
+export async function sendTelegram(text: string, button?: TelegramButton) {
   const results: boolean[] = []
-  for (const t of targets()) results.push(await sendOne(t, text))
+  for (const t of targets()) results.push(await sendOne(t, text, button))
   return results.length > 0 && results.every(Boolean)
 }

@@ -10,7 +10,8 @@ export function proxy(req: NextRequest) {
     return NextResponse.json({ error: '로그인이 필요합니다' }, { status: 401 })
   }
   const login = new URL('/login', req.url)
-  if (pathname !== '/') login.searchParams.set('next', pathname + search)
+  // 로그인 후 원래 가려던 곳으로 (알림 링크의 /?date=&open= 포함)
+  if (pathname !== '/' || search) login.searchParams.set('next', pathname + search)
   return NextResponse.redirect(login)
 }
 
