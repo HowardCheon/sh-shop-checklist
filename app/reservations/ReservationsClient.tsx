@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect } from 'react'
 import BrandHeader from '@/components/BrandHeader'
 import { isoToKst, kstNow, addDays } from '@/lib/booking/time'
 import PaymentSheet from './PaymentSheet'
+import DateTimePicker from './DateTimePicker'
 import { effectivePrice } from '@/lib/booking/pricing'
 
 interface Reservation {
@@ -230,13 +231,9 @@ function ReservationForm({ initial, products, date, onSave, onCancel, editId }: 
               ))}
             </select>
           </div>
-          <div>
-            <label className={lbl}>날짜 <span className="text-red-400">*</span></label>
-            <input type="date" className={inp} value={form.date} onChange={set('date')} />
-          </div>
-          <div>
-            <label className={lbl}>시간 <span className="text-red-400">*</span></label>
-            <input type="time" className={inp} value={form.time} onChange={set('time')} />
+          <div className="col-span-2">
+            <DateTimePicker date={form.date} time={form.time} durationMin={selectedProduct?.duration_min ?? 60} excludeId={editId}
+              onChange={(date, time) => setForm(f => ({ ...f, date, time }))} />
           </div>
           <div className="col-span-2">
             <label className={lbl}>금액 (원)</label>
@@ -247,11 +244,6 @@ function ReservationForm({ initial, products, date, onSave, onCancel, editId }: 
             <textarea className={inp} rows={2} placeholder="특이사항 등..." value={form.memo} onChange={set('memo')} />
           </div>
         </div>
-        {selectedProduct?.duration_min && (
-          <p className="text-xs text-brand-400 bg-brand-50 rounded-lg px-3 py-2">
-            ⏱ 소요시간 {selectedProduct.duration_min}분 + 정리시간 20분까지 예약 블록이 잡힙니다
-          </p>
-        )}
         <div className="flex gap-2 pt-1">
           <button onClick={onCancel} className="flex-1 py-2.5 rounded-xl text-sm font-600 text-gray-500 bg-gray-100">취소</button>
           <button onClick={handleSave} disabled={saving} className="flex-1 py-2.5 rounded-xl text-sm font-700 text-white disabled:opacity-40" style={{ background: 'linear-gradient(135deg, #bc7659, #cb9175)' }}>
