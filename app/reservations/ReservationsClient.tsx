@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import BrandHeader from '@/components/BrandHeader'
 import { isoToKst, kstNow, addDays } from '@/lib/booking/time'
 import PaymentSheet from './PaymentSheet'
@@ -37,8 +37,25 @@ interface Product {
   id: number
   name: string
   price: number
+  member_price?: number | null
   duration_min: number | null
 }
+
+interface CustomerOption {
+  id: number
+  name: string
+  phone: string | null
+  prepaid_cash: number | null
+  prepaid_bonus: number | null
+}
+
+const prepaidTotal = (c: CustomerOption) => (c.prepaid_cash ?? 0) + (c.prepaid_bonus ?? 0)
+const fmtPhone = (p: string | null) => {
+  const d = (p ?? '').replace(/\D/g, '')
+  return d.length === 11 ? `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7)}` : p ?? ''
+}
+/* 시술가 — 회원이면 회원가 */
+const priceFor = (p: Product, member: boolean) => (member ? p.member_price ?? p.price : p.price)
 
 interface ClosedDate {
   date: string
@@ -91,7 +108,7 @@ const STATUS_LABEL = { scheduled: '예약', completed: '완료', cancelled: '취
 const STATUS_COLOR = { scheduled: '#bc7659', completed: '#7c9a7e', cancelled: '#9ca3af' } as const
 const STATUS_BG    = { scheduled: '#faf4f0', completed: '#f0f4ef', cancelled: '#f9fafb' } as const
 
-const EMPTY_FORM = { customer_name: '', customer_phone: '', product_id: '', date: '', time: '', price: '', memo: '' }
+const EMPTY_FORM = { customer_name: '', customer_phone: '', customer_id: '', product_id: '', date: '', time: '', price: '', memo: '' }
 
 /* ── 예약 폼 ── */
 function ReservationForm({ initial, products, date, onSave, onCancel, editId }: {
@@ -102,19 +119,52 @@ function ReservationForm({ initial, products, date, onSave, onCancel, editId }: 
   const [form, setForm] = useState(initial ?? { ...EMPTY_FORM, date })
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
+  const [customers, setCustomers] = useState<CustomerOption[]>([])
+  const [showPicker, setShowPicker] = useState(false)
+
+  // 고객 목록 (선택용)
+  useEffect(() => {
+    fetch('/api/customers').then(r => r.ok ? r.json() : []).then(list => {
+      if (Array.isArray(list)) setCustomers(list.map((c: CustomerOption) => ({
+        id: c.id, name: c.name, phone: c.phone, prepaid_cash: c.prepaid_cash, prepaid_bonus: c.prepaid_bonus,
+      })))
+    })
+  }, [])
+
+  const picked = customers.find(c => c.id === Number(form.customer_id))
+  const isMember = !!picked && prepaidTotal(picked) > 0
+
+  // 이름·전화번호로 고객 검색 (최대 6명)
+  const query = form.customer_name.trim()
+  const digits = query.replace(/\D/g, '')
+  const matches = !query || picked ? [] : customers.filter(c =>
+    c.name.includes(query) || (digits.length >= 3 && (c.phone ?? '').replace(/\D/g, '').includes(digits)),
+  ).slice(0, 6)
 
   const set = (k: keyof typeof EMPTY_FORM) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
       const val = e.target.value
       setForm(f => {
         const next = { ...f, [k]: val }
+        // 이름·연락처를 직접 고치면 선택한 고객 연결 해제
+        if (k === 'customer_name' || k === 'customer_phone') next.customer_id = ''
         if (k === 'product_id') {
           const p = products.find(p => p.id === Number(val))
-          if (p) next.price = p.price.toString()
+          if (p) next.price = priceFor(p, isMember).toString()
         }
         return next
       })
+      if (k === 'customer_name') setShowPicker(true)
     }
+
+  const pickCustomer = (c: CustomerOption) => {
+    const member = prepaidTotal(c) > 0
+    setForm(f => {
+      const p = products.find(p => p.id === Number(f.product_id))
+      return { ...f, customer_name: c.name, customer_phone: fmtPhone(c.phone), customer_id: String(c.id), price: p ? priceFor(p, member).toString() : f.price }
+    })
+    setShowPicker(false)
+  }
 
   const selectedProduct = products.find(p => p.id === Number(form.product_id))
 
@@ -139,7 +189,33 @@ function ReservationForm({ initial, products, date, onSave, onCancel, editId }: 
         <div className="grid grid-cols-2 gap-2">
           <div className="col-span-2">
             <label className={lbl}>고객명 <span className="text-red-400">*</span></label>
-            <input className={inp} placeholder="홍길동" value={form.customer_name} onChange={set('customer_name')} />
+            <div className="relative">
+              <input className={inp} placeholder="이름 또는 전화번호로 검색" value={form.customer_name} onChange={set('customer_name')}
+                onFocus={() => setShowPicker(true)} onBlur={() => setTimeout(() => setShowPicker(false), 150)} autoComplete="off" />
+              {showPicker && matches.length > 0 && (
+                <ul className="absolute z-10 left-0 right-0 mt-1 bg-white border border-brand-100 rounded-xl shadow-lg overflow-hidden">
+                  {matches.map(c => (
+                    <li key={c.id}>
+                      <button type="button" onMouseDown={e => e.preventDefault()} onClick={() => pickCustomer(c)}
+                        className="w-full flex items-center justify-between gap-2 px-3 py-2 text-left hover:bg-brand-50">
+                        <span className="text-sm text-gray-800">{c.name} <span className="text-xs text-gray-400">{fmtPhone(c.phone)}</span></span>
+                        {prepaidTotal(c) > 0
+                          ? <span className="text-[10px] font-700 px-2 py-0.5 rounded-full bg-brand-50 text-brand-600 whitespace-nowrap">🌸 회원</span>
+                          : <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-400 whitespace-nowrap">비회원</span>}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            {picked ? (
+              <p className="mt-1 text-[11px] text-brand-600">
+                ✓ 등록 고객 선택됨 · {isMember ? `🌸 회원 (선불 잔액 ${prepaidTotal(picked).toLocaleString()}원) — 회원가 적용` : '비회원'}
+                <button type="button" onClick={() => setForm(f => ({ ...f, customer_id: '' }))} className="ml-2 text-gray-400 underline">선택 해제</button>
+              </p>
+            ) : query && (
+              <p className="mt-1 text-[11px] text-gray-400">목록에서 고르지 않으면 입력한 연락처로 새 고객으로 등록돼요</p>
+            )}
           </div>
           <div className="col-span-2">
             <label className={lbl}>연락처</label>
@@ -435,6 +511,7 @@ export default function ReservationsClient({ initialReservations, initialDate, p
     const payload = {
       customer_name: form.customer_name,
       customer_phone: form.customer_phone || null,
+      customer_id: form.customer_id ? Number(form.customer_id) : null,
       product_id: form.product_id ? Number(form.product_id) : null,
       product_name: selectedProduct?.name ?? null,
       duration_min: selectedProduct?.duration_min ?? 60,
@@ -474,6 +551,7 @@ export default function ReservationsClient({ initialReservations, initialDate, p
   const editInitial = editTarget ? {
     customer_name: editTarget.customer_name,
     customer_phone: editTarget.customer_phone ?? '',
+    customer_id: editTarget.customer_id?.toString() ?? '',
     product_id: editTarget.product_id?.toString() ?? '',
     date: kstDate(editTarget.start_at),
     time: fmtTime(editTarget.start_at),

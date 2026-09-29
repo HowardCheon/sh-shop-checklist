@@ -28,8 +28,20 @@ export async function findConflict(startAt: string, blockEndAt: string, excludeI
   return data?.[0] ?? null
 }
 
-/** 연락처가 휴대폰 번호면 정규화 후 고객을 찾거나 생성 — 아니면 연결하지 않음 */
-export async function linkCustomer(name: string, rawPhone: unknown) {
+/**
+ * 예약을 고객과 연결 — 관리자가 고객을 직접 선택했으면(customerId) 그 고객으로,
+ * 아니면 연락처가 휴대폰 번호일 때 정규화 후 고객을 찾거나 생성(그 외에는 연결하지 않음)
+ */
+export async function linkCustomer(name: string, rawPhone: unknown, selectedId?: unknown) {
+  const id = Number(selectedId)
+  if (Number.isInteger(id) && id > 0) {
+    const { data: picked } = await supabase.from('sh_shop_customers').select('id, phone').eq('id', id).maybeSingle()
+    if (picked) {
+      let phone = picked.phone as string | null
+      try { phone = normalizePhone(rawPhone) } catch { /* 연락처가 비었거나 형식이 다르면 고객 번호 사용 */ }
+      return { phone, customerId: picked.id as number }
+    }
+  }
   let phone: string
   try {
     phone = normalizePhone(rawPhone)

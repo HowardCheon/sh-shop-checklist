@@ -16,7 +16,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const body = await req.json()
-  const { customer_name, customer_phone, product_id, product_name, duration_min, start_at, price, memo, status } = body
+  const { customer_name, customer_phone, customer_id, product_id, product_name, duration_min, start_at, price, memo, status } = body
 
   // 기존 데이터 조회
   const { data: existing } = await supabase.from('sh_shop_reservations').select('*').eq('id', id).single()
@@ -48,7 +48,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
   if (customer_name !== undefined) { updates.customer_name = customer_name.trim(); if (customer_name !== existing.customer_name) changes.push(`고객명 변경`) }
   if (customer_phone !== undefined) {
-    const { phone, customerId } = await linkCustomer((customer_name ?? existing.customer_name).trim(), customer_phone)
+    const { phone, customerId } = await linkCustomer((customer_name ?? existing.customer_name).trim(), customer_phone, customer_id)
     updates.customer_phone = phone
     updates.customer_id = customerId
   }

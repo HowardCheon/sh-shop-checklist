@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const body = await req.json()
-  const { customer_name, customer_phone, product_id, product_name, duration_min, start_at, price, memo } = body
+  const { customer_name, customer_phone, customer_id, product_id, product_name, duration_min, start_at, price, memo } = body
 
   if (!customer_name?.trim()) return NextResponse.json({ error: '고객명 필수' }, { status: 400 })
   if (!start_at || isNaN(Date.parse(start_at))) return NextResponse.json({ error: '예약 시간 필수' }, { status: 400 })
@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
   if (conflict) return NextResponse.json({ error: '예약 시간 충돌', conflict }, { status: 409 })
 
   const name = customer_name.trim()
-  const { phone, customerId } = await linkCustomer(name, customer_phone)
+  const { phone, customerId } = await linkCustomer(name, customer_phone, customer_id)
 
   const { data, error } = await supabase
     .from('sh_shop_reservations')
