@@ -1,5 +1,38 @@
-import { describe, it, expect } from 'vitest'
-import { newReservationMessage } from '../telegram'
+import { describe, it, expect, vi, afterEach } from 'vitest'
+import { newReservationMessage, sendTelegram } from '../telegram'
+
+describe('sendTelegram (1순위 → 2순위)', () => {
+  afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs() })
+  const setEnv = () => {
+    vi.stubEnv('TELEGRAM_PRIMARY_BOT_TOKEN', 'P'); vi.stubEnv('TELEGRAM_PRIMARY_CHAT_ID', '1')
+    vi.stubEnv('TELEGRAM_BOT_TOKEN', 'S'); vi.stubEnv('TELEGRAM_CHAT_ID', '2')
+  }
+  it('1순위 봇에 먼저, 이어서 2순위 봇에 보낸다', async () => {
+    setEnv()
+    const calls: string[] = []
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => { calls.push(url); return new Response('{}', { status: 200 }) }))
+    expect(await sendTelegram('hi')).toBe(true)
+    expect(calls).toEqual(['https://api.telegram.org/botP/sendMessage', 'https://api.telegram.org/botS/sendMessage'])
+  })
+  it('1순위가 실패해도 2순위는 보낸다', async () => {
+    setEnv()
+    const calls: string[] = []
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      calls.push(url)
+      if (url.includes('botP')) throw new Error('down')
+      return new Response('{}', { status: 200 })
+    }))
+    expect(await sendTelegram('hi')).toBe(false)
+    expect(calls).toHaveLength(2)
+  })
+  it('설정이 없으면 보내지 않는다', async () => {
+    vi.stubEnv('TELEGRAM_PRIMARY_BOT_TOKEN', ''); vi.stubEnv('TELEGRAM_BOT_TOKEN', '')
+    const f = vi.fn()
+    vi.stubGlobal('fetch', f)
+    expect(await sendTelegram('hi')).toBe(false)
+    expect(f).not.toHaveBeenCalled()
+  })
+})
 
 const base = {
   name: '홍길동',

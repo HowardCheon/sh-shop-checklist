@@ -39,22 +39,33 @@ export function newReservationMessage(r: NewReservationInfo) {
   return lines.join('\n')
 }
 
-/** 발송 실패는 로그만 남김 (예약 처리에 영향 없음) */
-export async function sendTelegram(text: string) {
-  const token = process.env.TELEGRAM_BOT_TOKEN
-  const chatId = process.env.TELEGRAM_CHAT_ID
-  if (!token || !chatId) return false
+/** 발송 대상 — 1순위(TELEGRAM_PRIMARY_*) 먼저, 2순위(TELEGRAM_*) 다음. 설정된 곳만 */
+function targets() {
+  return [
+    { label: '1순위', token: process.env.TELEGRAM_PRIMARY_BOT_TOKEN, chatId: process.env.TELEGRAM_PRIMARY_CHAT_ID },
+    { label: '2순위', token: process.env.TELEGRAM_BOT_TOKEN, chatId: process.env.TELEGRAM_CHAT_ID },
+  ].filter((t): t is { label: string; token: string; chatId: string } => !!t.token && !!t.chatId)
+}
+
+async function sendOne(t: { label: string; token: string; chatId: string }, text: string) {
   try {
-    const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    const res = await fetch(`https://api.telegram.org/bot${t.token}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'HTML', disable_web_page_preview: true }),
+      body: JSON.stringify({ chat_id: t.chatId, text, parse_mode: 'HTML', disable_web_page_preview: true }),
       signal: AbortSignal.timeout(8000),
     })
-    if (!res.ok) console.error('텔레그램 발송 실패', res.status, await res.text())
+    if (!res.ok) console.error(`텔레그램(${t.label}) 발송 실패`, res.status, await res.text())
     return res.ok
   } catch (e) {
-    console.error('텔레그램 발송 오류', e)
+    console.error(`텔레그램(${t.label}) 발송 오류`, e)
     return false
   }
+}
+
+/** 모든 대상에 순위대로 발송 — 한 곳이 실패해도 나머지는 계속, 예약 처리에는 영향 없음 */
+export async function sendTelegram(text: string) {
+  const results: boolean[] = []
+  for (const t of targets()) results.push(await sendOne(t, text))
+  return results.length > 0 && results.every(Boolean)
 }
