@@ -14,6 +14,7 @@ export default function CustomerDetailClient({ initialCustomer, initialHistory }
   const [form, setForm] = useState({ name: initialCustomer.name, phone: initialCustomer.phone ?? '', memo: initialCustomer.memo ?? '' })
   const [saving, setSaving] = useState(false)
   const [confirmDel, setConfirmDel] = useState(false)
+  const [delText, setDelText] = useState('')
   const [history, setHistory] = useState(initialHistory)
   const stats = calcStats(customer)
   const onHistory = useCallback((h: CustomerHistory[]) => setHistory(h), [])
@@ -35,8 +36,9 @@ export default function CustomerDetailClient({ initialCustomer, initialHistory }
   }
 
   const handleDelete = async () => {
+    if (delText.trim() !== '삭제') return
     const res = await fetch(`/api/customers/${customer.id}`, { method: 'DELETE' })
-    if (!res.ok) { setErr('삭제에 실패했습니다'); setConfirmDel(false); return }
+    if (!res.ok) { setErr('삭제에 실패했습니다'); setConfirmDel(false); setDelText(''); return }
     router.replace('/customers')
   }
 
@@ -165,9 +167,17 @@ export default function CustomerDetailClient({ initialCustomer, initialHistory }
         {!editing && (
           <div className="pt-2 border-t border-brand-100">
             {confirmDel ? (
-              <div className="flex gap-2">
-                <button onClick={() => setConfirmDel(false)} className="flex-1 py-2 rounded-xl text-sm text-gray-500 bg-gray-100">취소</button>
-                <button onClick={handleDelete} className="flex-1 py-2 rounded-xl text-sm font-700 text-white bg-red-500">정말 삭제</button>
+              <div className="space-y-2">
+                <p className="text-xs text-red-500">
+                  {customer.name} 고객을 삭제합니다. 되돌릴 수 없어요. 확인을 위해 아래에 <b>삭제</b>라고 입력하세요.
+                </p>
+                <input className={inp} value={delText} onChange={e => setDelText(e.target.value)} placeholder="삭제" autoFocus
+                  onKeyDown={e => { if (e.key === 'Enter' && delText.trim() === '삭제') handleDelete() }} />
+                <div className="flex gap-2">
+                  <button onClick={() => { setConfirmDel(false); setDelText('') }} className="flex-1 py-2 rounded-xl text-sm text-gray-500 bg-gray-100">취소</button>
+                  <button onClick={handleDelete} disabled={delText.trim() !== '삭제'}
+                    className="flex-1 py-2 rounded-xl text-sm font-700 text-white bg-red-500 disabled:opacity-30">삭제</button>
+                </div>
               </div>
             ) : (
               <button onClick={() => setConfirmDel(true)} className="w-full py-2 rounded-xl text-xs text-gray-400 hover:text-red-400">고객 삭제</button>
