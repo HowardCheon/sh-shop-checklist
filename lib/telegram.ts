@@ -71,6 +71,12 @@ async function sendOne(t: { label: string; token: string; chatId: string }, text
   }
 }
 
+/** 관리자(홍석, 2순위 봇)에게만 — 운영 오류 알림용 */
+export async function sendTelegramToAdmin(text: string) {
+  const t = targets().find(x => x.label === '2순위')
+  return t ? sendOne(t, text) : false
+}
+
 /** 모든 대상에 순위대로 발송 — 한 곳이 실패해도 나머지는 계속, 예약 처리에는 영향 없음 */
 export async function sendTelegram(text: string, button?: TelegramButton) {
   const results: boolean[] = []

@@ -2,6 +2,7 @@
 import { createHash, randomBytes, randomInt, timingSafeEqual } from 'node:crypto'
 import { supabase } from '@/lib/supabase'
 import { sendSms, smsConfigured, verificationText } from '@/lib/solapi'
+import { alertSmsFailure } from '@/lib/alerts'
 import { BookingError } from './errors'
 import { normalizePhone } from './phone'
 
@@ -65,8 +66,12 @@ export async function requestCode(rawPhone: unknown) {
   })
   if (insErr) throw new BookingError('INTERNAL', '잠시 후 다시 시도해 주세요.')
 
-  if (!dryRun() && !(await sendSms(phone, verificationText(code)))) {
-    throw new BookingError('SMS_FAILED', '인증번호 발송에 실패했어요. 잠시 후 다시 시도해 주세요.')
+  if (!dryRun()) {
+    const sent = await sendSms(phone, verificationText(code))
+    if (!sent.ok) {
+      await alertSmsFailure(phone, sent.reason).catch(e => console.error('SMS 실패 알림 오류', e))
+      throw new BookingError('SMS_FAILED', '인증번호 발송에 실패했어요. 잠시 후 다시 시도하거나 매장으로 전화 주세요.')
+    }
   }
   return { expires_in: CODE_TTL_SEC, resend_after: RESEND_GAP_SEC }
 }
