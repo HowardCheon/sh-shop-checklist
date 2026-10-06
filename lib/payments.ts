@@ -13,6 +13,14 @@ const RPC_ERRORS: Record<string, [number, string]> = {
   PAYMENT_NOT_FOUND: [404, '결제를 찾을 수 없습니다'],
   ALREADY_VOIDED: [409, '이미 취소된 결제입니다'],
   NO_BALANCE: [409, '환불할 잔액이 없습니다'],
+  ALREADY_REGISTERED: [409, '이미 첫체험 패키지가 등록된 고객입니다'],
+  NO_REMAINING: [409, '남은 횟수가 없습니다'],
+  PACKAGE_NOT_FOUND: [404, '첫체험 패키지를 찾을 수 없습니다'],
+  PACKAGE_CANCELLED: [409, '취소된 첫체험 패키지입니다'],
+  USE_NOT_FOUND: [404, '사용 내역을 찾을 수 없습니다'],
+  ALREADY_CANCELLED: [409, '이미 취소되었습니다'],
+  HAS_USES: [409, '사용 내역이 있어 등록을 취소할 수 없습니다. 사용을 먼저 취소하세요'],
+  INVALID_TRIAL_USE: [400, '사용 종류가 올바르지 않습니다'],
 }
 
 export class PaymentError extends Error {
@@ -21,7 +29,7 @@ export class PaymentError extends Error {
   }
 }
 
-async function rpc<T>(fn: string, args: Record<string, unknown>): Promise<T> {
+export async function rpc<T>(fn: string, args: Record<string, unknown>): Promise<T> {
   const { data, error } = await supabase.rpc(fn, args)
   if (error) {
     const code = Object.keys(RPC_ERRORS).find(k => error.message?.includes(k))
