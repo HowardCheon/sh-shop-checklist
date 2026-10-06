@@ -3,6 +3,7 @@
 import { useCallback, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import PrepaidPanel from './PrepaidPanel'
+import TrialPanel from './TrialPanel'
 import { calcStats, fmtDate, fmtTime, fmtPrice, STATUS_LABEL, STATUS_COLOR, STATUS_BG, type Customer, type CustomerHistory } from '../customer-utils'
 
 
@@ -18,6 +19,9 @@ export default function CustomerDetailClient({ initialCustomer, initialHistory }
   const [history, setHistory] = useState(initialHistory)
   const stats = calcStats(customer)
   const onHistory = useCallback((h: CustomerHistory[]) => setHistory(h), [])
+  // 첫체험 등록·취소로 선불 잔액·이력이 바뀌면 선불 카드 재조회
+  const [refreshKey, setRefreshKey] = useState(0)
+  const onTrialChanged = useCallback(() => setRefreshKey(k => k + 1), [])
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm(f => ({ ...f, [k]: e.target.value }))
@@ -88,7 +92,8 @@ export default function CustomerDetailClient({ initialCustomer, initialHistory }
           ))}
         </div>
 
-        <PrepaidPanel customerId={customer.id} initialCash={customer.prepaid_cash ?? 0} initialBonus={customer.prepaid_bonus ?? 0} onHistory={onHistory} />
+        <PrepaidPanel customerId={customer.id} initialCash={customer.prepaid_cash ?? 0} initialBonus={customer.prepaid_bonus ?? 0} onHistory={onHistory} refreshKey={refreshKey} />
+        <TrialPanel customerId={customer.id} onChanged={onTrialChanged} />
 
         {stats.lastVisit && <p className="text-xs text-gray-400 mb-3">마지막 방문: {fmtDate(stats.lastVisit)}</p>}
 

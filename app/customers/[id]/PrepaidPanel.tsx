@@ -38,11 +38,12 @@ interface PaymentRow {
 const signed = (n: number) => (n > 0 ? '+' : '') + n.toLocaleString()
 
 /* ── 선불 충전금: 충전 / 직접 차감 / 환불 / 원장 / 결제 내역 ── */
-export default function PrepaidPanel({ customerId, initialCash, initialBonus, onHistory }: {
+export default function PrepaidPanel({ customerId, initialCash, initialBonus, onHistory, refreshKey }: {
   customerId: number
   initialCash: number
   initialBonus: number
   onHistory: (history: CustomerHistory[]) => void
+  refreshKey: number
 }) {
   const [cash, setCash] = useState(initialCash)
   const [bonus, setBonus] = useState(initialBonus)
@@ -64,7 +65,7 @@ export default function PrepaidPanel({ customerId, initialCash, initialBonus, on
     onHistory(data.history)
   }, [customerId, onHistory])
 
-  useEffect(() => { reload() }, [reload])
+  useEffect(() => { reload() }, [reload, refreshKey])
 
   const post = async (key: string, url: string, body: object) => {
     setBusy(key); setErr('')
@@ -159,7 +160,7 @@ export default function PrepaidPanel({ customerId, initialCash, initialBonus, on
                       {fmtPrice(p.total_amount)}
                       {p.prepaid_cash_used + p.prepaid_bonus_used > 0 && ` · 선불 ${(p.prepaid_cash_used + p.prepaid_bonus_used).toLocaleString()}`}
                       {p.other_amount > 0 && p.other_method && ` · ${METHOD_LABEL[p.other_method]} ${p.other_amount.toLocaleString()}`}
-                      {!p.reservation_id && ' (직접)'}
+                      {!p.reservation_id && ` (${p.memo ?? '직접'})`}
                     </span>
                     {p.status === 'paid' && (
                       <button onClick={() => handleVoid(p)} disabled={busy !== null} className="shrink-0 text-[10px] text-gray-400 border border-gray-200 rounded px-1.5">취소</button>
