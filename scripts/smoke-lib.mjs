@@ -33,14 +33,15 @@ export async function adminClient(base) {
   const cookie = login.headers.get('set-cookie').split(';')[0]
   return async (method, path, body) => {
     const res = await fetch(base + path, {
-      method, headers: { 'Content-Type': 'application/json', Cookie: cookie }, body: body ? JSON.stringify(body) : undefined,
+      method, headers: { 'Content-Type': 'application/json', Cookie: cookie }, body: typeof body === 'string' ? body : body ? JSON.stringify(body) : undefined,
     })
     return { status: res.status, body: await res.json().catch(() => null) }
   }
 }
 
 export async function cleanupTestData() {
-  await sql(`delete from sh_shop_prepaid_ledger where customer_id in (select id from sh_shop_customers where phone like '0109999%');
+  await sql(`delete from sh_shop_trial_packages where customer_id in (select id from sh_shop_customers where phone like '0109999%');
+             delete from sh_shop_prepaid_ledger where customer_id in (select id from sh_shop_customers where phone like '0109999%');
              delete from sh_shop_payments where customer_id in (select id from sh_shop_customers where phone like '0109999%');
              delete from sh_shop_reservation_history where reservation_id in (select id from sh_shop_reservations where customer_phone like '0109999%');
              delete from sh_shop_reservations where customer_phone like '0109999%';

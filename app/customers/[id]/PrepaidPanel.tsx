@@ -38,12 +38,13 @@ interface PaymentRow {
 const signed = (n: number) => (n > 0 ? '+' : '') + n.toLocaleString()
 
 /* ── 선불 충전금: 충전 / 직접 차감 / 환불 / 원장 / 결제 내역 ── */
-export default function PrepaidPanel({ customerId, initialCash, initialBonus, onHistory, refreshKey }: {
+export default function PrepaidPanel({ customerId, initialCash, initialBonus, onHistory, refreshKey, onChanged }: {
   customerId: number
   initialCash: number
   initialBonus: number
   onHistory: (history: CustomerHistory[]) => void
   refreshKey: number
+  onChanged: () => void
 }) {
   const [cash, setCash] = useState(initialCash)
   const [bonus, setBonus] = useState(initialBonus)
@@ -69,12 +70,19 @@ export default function PrepaidPanel({ customerId, initialCash, initialBonus, on
 
   const post = async (key: string, url: string, body: object) => {
     setBusy(key); setErr('')
-    const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-    const data = await res.json().catch(() => ({}))
-    setBusy(null)
-    if (!res.ok) { setErr(data.error ?? '처리에 실패했습니다'); return null }
-    await reload()
-    return data
+    try {
+      const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) { setErr(data.error ?? '처리에 실패했습니다'); return null }
+      await reload()
+      onChanged()
+      return data
+    } catch {
+      setErr('네트워크 오류입니다. 다시 시도하세요')
+      return null
+    } finally {
+      setBusy(null)
+    }
   }
 
   const handleCharge = (opt: typeof CHARGE_OPTIONS[number]) => {

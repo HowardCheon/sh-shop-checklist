@@ -16,7 +16,7 @@ const CODES = Object.keys(TRIAL_PACKAGES) as TrialCode[]
 const dots = (used: number, total: number) => '●'.repeat(used) + '○'.repeat(total - used)
 
 /* ── 첫체험 패키지: 등록(결제) / 사용 / 사용 취소 / 등록 취소 ── */
-export default function TrialPanel({ customerId, onChanged }: { customerId: number; onChanged: () => void }) {
+export default function TrialPanel({ customerId, refreshKey, onChanged }: { customerId: number; refreshKey: number; onChanged: () => void }) {
   const [pkg, setPkg] = useState<TrialPackageRow | null>(null)
   const [uses, setUses] = useState<TrialUseRow[]>([])
   const [balance, setBalance] = useState({ cash: 0, bonus: 0 })
@@ -37,17 +37,27 @@ export default function TrialPanel({ customerId, onChanged }: { customerId: numb
     setLoaded(true)
   }, [customerId])
 
-  useEffect(() => { reload() }, [reload])
+  useEffect(() => { reload() }, [reload, refreshKey])
 
   const post = async (key: string, url: string, body: object = {}) => {
     setBusy(key); setErr('')
-    const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-    const data = await res.json().catch(() => ({}))
-    setBusy(null)
-    if (!res.ok) { setErr(data.error ?? '처리에 실패했습니다'); return false }
-    await reload()
-    onChanged()
-    return true
+    try {
+      const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setErr(data.error ?? '처리에 실패했습니다')
+        await reload() // 다른 기기·탭에서 바뀐 상태 반영
+        return false
+      }
+      await reload()
+      onChanged()
+      return true
+    } catch {
+      setErr('네트워크 오류입니다. 다시 시도하세요')
+      return false
+    } finally {
+      setBusy(null)
+    }
   }
 
   const openRegister = async (code: TrialCode) => {

@@ -1,5 +1,5 @@
 // 첫체험 패키지 점검 — 사용법: node scripts/trial-smoke.mjs [baseUrl]
-import { adminClient, check, cleanupTestData, env, finish } from './smoke-lib.mjs'
+import { adminClient, check, cleanupTestData, env, finish, sql } from './smoke-lib.mjs'
 
 const BASE = process.argv[2] || 'http://localhost:3210'
 const call = await adminClient(BASE)
@@ -69,6 +69,34 @@ try {
 
   r = await call('GET', `/api/customers/${cid}/trial`)
   check('취소 후 유효 패키지 없음', r.status === 200 && r.body.package === null, r)
+
+  // 입력 오류·없는 고객
+  r = await call('GET', '/api/customers/999999999/trial')
+  check('없는 고객 조회 → 404', r.status === 404, r)
+  r = await call('POST', `/api/customers/${cid}/trial`, '{bad json')
+  check('등록 잘못된 JSON → 400', r.status === 400, r)
+  r = await call('POST', `/api/trial/${pkg.id}/use`, '{bad json')
+  check('사용 잘못된 JSON → 400', r.status === 400, r)
+
+  // 동시 등록 2건 → 1건만 성공, 나머지 409
+  const regs = await Promise.all(['card', 'cash'].map(m => call('POST', `/api/customers/${cid}/trial`, { code: 'trial2', other_method: m })))
+  check('동시 등록 2건 중 1건만 성공(나머지 409)', regs.filter(x => x.status === 200).length === 1 && regs.filter(x => x.status === 409).length === 1, regs.map(x => [x.status, x.body?.error]))
+  const pkg3 = regs.find(x => x.status === 200)?.body?.package
+
+  // 상태값 CHECK 제약
+  const bad = await sql(`update sh_shop_trial_packages set status = 'bogus' where id = ${pkg3.id}`)
+  check('패키지 status CHECK 제약', JSON.stringify(bad).includes('check'), bad)
+
+  // 고객 삭제해도 패키지 기록은 남음 (customer_id null), 결제 직접 취소는 계속 차단
+  r = await call('DELETE', `/api/customers/${cid}`)
+  const kept = await sql(`select customer_id, status from sh_shop_trial_packages where id = ${pkg3.id}`)
+  check('고객 삭제 후 패키지 기록 유지', r.status === 200 && kept[0]?.customer_id === null && kept[0]?.status === 'active', [r, kept])
+  r = await call('POST', `/api/payments/${pkg3.payment_id}/void`)
+  check('삭제 고객의 첫체험 결제 직접 취소 → 409', r.status === 409, r)
+  // 고객 삭제로 연결이 끊긴 이 테스트의 패키지·결제 정리
+  const ids = [pkg, pkg2, pkg3].map(x => x.id).join(',')
+  const payIds = [pkg, pkg2, pkg3].map(x => x.payment_id).join(',')
+  await sql(`delete from sh_shop_trial_packages where id in (${ids}); delete from sh_shop_payments where id in (${payIds}) and customer_id is null`)
 
   // anon 키 차단
   let a = await anon('rpc/sh_shop_trial_use', { method: 'POST', body: JSON.stringify({ p_package_id: pkg.id, p_kind: 'basic', p_care_name: null, p_memo: null }) })

@@ -21,6 +21,7 @@ const RPC_ERRORS: Record<string, [number, string]> = {
   ALREADY_CANCELLED: [409, '이미 취소되었습니다'],
   HAS_USES: [409, '사용 내역이 있어 등록을 취소할 수 없습니다. 사용을 먼저 취소하세요'],
   INVALID_TRIAL_USE: [400, '사용 종류가 올바르지 않습니다'],
+  sh_shop_trial_packages_active_uq: [409, '이미 첫체험 패키지가 등록된 고객입니다'], // 동시 등록이 유니크 인덱스에 걸린 경우
   TRIAL_PAYMENT: [409, '첫체험 패키지 결제입니다. 첫체험 카드에서 등록 취소로 처리하세요'],
 }
 

@@ -19,9 +19,11 @@ export default function CustomerDetailClient({ initialCustomer, initialHistory }
   const [history, setHistory] = useState(initialHistory)
   const stats = calcStats(customer)
   const onHistory = useCallback((h: CustomerHistory[]) => setHistory(h), [])
-  // 첫체험 등록·취소로 선불 잔액·이력이 바뀌면 선불 카드 재조회
-  const [refreshKey, setRefreshKey] = useState(0)
-  const onTrialChanged = useCallback(() => setRefreshKey(k => k + 1), [])
+  // 선불·첫체험 카드가 서로의 변경(잔액·이력)을 반영하도록 상대 카드 재조회
+  const [prepaidKey, setPrepaidKey] = useState(0)
+  const [trialKey, setTrialKey] = useState(0)
+  const onTrialChanged = useCallback(() => setPrepaidKey(k => k + 1), [])
+  const onPrepaidChanged = useCallback(() => setTrialKey(k => k + 1), [])
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm(f => ({ ...f, [k]: e.target.value }))
@@ -92,8 +94,8 @@ export default function CustomerDetailClient({ initialCustomer, initialHistory }
           ))}
         </div>
 
-        <PrepaidPanel customerId={customer.id} initialCash={customer.prepaid_cash ?? 0} initialBonus={customer.prepaid_bonus ?? 0} onHistory={onHistory} refreshKey={refreshKey} />
-        <TrialPanel customerId={customer.id} onChanged={onTrialChanged} />
+        <PrepaidPanel customerId={customer.id} initialCash={customer.prepaid_cash ?? 0} initialBonus={customer.prepaid_bonus ?? 0} onHistory={onHistory} refreshKey={prepaidKey} onChanged={onPrepaidChanged} />
+        <TrialPanel customerId={customer.id} refreshKey={trialKey} onChanged={onTrialChanged} />
 
         {stats.lastVisit && <p className="text-xs text-gray-400 mb-3">마지막 방문: {fmtDate(stats.lastVisit)}</p>}
 

@@ -13,7 +13,7 @@ export const SPECIAL_CARES = ['플라즈마', '로즈 해독', '상체', '하체
 
 export interface TrialPackageRow {
   id: number
-  customer_id: number
+  customer_id: number | null
   package_code: string
   basic_total: number
   special_total: number

@@ -166,3 +166,13 @@ begin
 end $$;
 revoke all on function sh_shop_payment_void(bigint) from public, anon, authenticated;
 grant execute on function sh_shop_payment_void(bigint) to service_role;
+
+-- 리뷰 보완: 상태값 CHECK, 고객 삭제 시 패키지 기록 유지
+alter table sh_shop_trial_packages drop constraint if exists sh_shop_trial_packages_status_check;
+alter table sh_shop_trial_packages add constraint sh_shop_trial_packages_status_check check (status in ('active', 'cancelled'));
+alter table sh_shop_trial_uses drop constraint if exists sh_shop_trial_uses_status_check;
+alter table sh_shop_trial_uses add constraint sh_shop_trial_uses_status_check check (status in ('used', 'cancelled'));
+alter table sh_shop_trial_packages alter column customer_id drop not null;
+alter table sh_shop_trial_packages drop constraint if exists sh_shop_trial_packages_customer_id_fkey;
+alter table sh_shop_trial_packages add constraint sh_shop_trial_packages_customer_id_fkey
+  foreign key (customer_id) references sh_shop_customers(id) on delete set null;
