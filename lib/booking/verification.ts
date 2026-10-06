@@ -5,6 +5,7 @@ import { sendSms, smsConfigured, verificationText } from '@/lib/solapi'
 import { alertSmsFailure } from '@/lib/alerts'
 import { BookingError } from './errors'
 import { normalizePhone } from './phone'
+import { verificationRequired } from './verification-policy'
 
 export const CODE_TTL_SEC = 180
 export const TOKEN_TTL_SEC = 30 * 60
@@ -16,9 +17,9 @@ const MAX_PER_DAY_TOTAL = 300 // 전체 일일 발송 상한 (비용 보호)
 /** 개발용: SMS 없이 인증번호 0000 (운영에서는 무시) */
 const dryRun = () => process.env.SMS_DRY_RUN === 'true' && process.env.NODE_ENV !== 'production'
 
-/** 인증 사용 여부 — 솔라피 설정이 있거나 개발용 dry-run 이면 켜짐 */
+/** 인증 사용 여부 — 운영은 항상 켜짐, 개발은 솔라피 설정이 있거나 dry-run 일 때 */
 export function verificationEnabled() {
-  return smsConfigured() || dryRun()
+  return verificationRequired({ production: process.env.NODE_ENV === 'production', smsConfigured: smsConfigured(), dryRun: dryRun() })
 }
 
 const pepper = () => process.env.VERIFY_SECRET || process.env.BOOKING_API_KEY || ''
@@ -44,6 +45,11 @@ const LIMIT_ERRORS: Record<string, string> = {
 /** 인증번호 발송 — 제한 검사·기록은 DB 함수가 잠금 안에서 한 번에 처리. ip 는 고객 실제 IP(없으면 IP 제한 생략) */
 export async function requestCode(rawPhone: unknown, ip: string | null = null) {
   const phone = normalizePhone(rawPhone)
+  if (!smsConfigured() && !dryRun()) {
+    // 운영에서 솔라피 설정이 빠진 경우 — 인증을 끄지 않고 발송 불가로 막고 관리자에게 알림
+    await alertSmsFailure(phone, '솔라피 설정(SOLAPI_*) 없음').catch(e => console.error('SMS 실패 알림 오류', e))
+    throw new BookingError('SMS_FAILED', '지금은 인증번호를 보낼 수 없어요. 매장으로 전화 주세요.')
+  }
 
   const code = dryRun() ? '0000' : String(randomInt(0, 10000)).padStart(4, '0')
   const { error } = await supabase.rpc('sh_shop_verification_create', {
