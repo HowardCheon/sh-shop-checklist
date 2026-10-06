@@ -47,6 +47,11 @@ function failReason(status: number, data: unknown) {
 
 /** 단건 발송 — 접수 결과와 실패 사유 반환 */
 export async function sendSms(to: string, text: string): Promise<SmsResult> {
+  // 개발용: 실제 발송 없이 성공 처리 (운영에서는 무시)
+  if (process.env.SMS_DRY_RUN === 'true' && process.env.NODE_ENV !== 'production') {
+    console.log('[SMS_DRY_RUN]', to, JSON.stringify(text))
+    return { ok: true }
+  }
   const key = process.env.SOLAPI_API_KEY
   const secret = process.env.SOLAPI_API_SECRET
   const from = process.env.SOLAPI_SENDER?.replace(/\D/g, '')
