@@ -40,6 +40,6 @@ describe('validateCustomCharge', () => {
     expect(validateCustomCharge('150000', undefined)).toEqual({ amount: 150000, bonus: 0 })
   })
   it('잘못된 값 거부', () => {
-    for (const [a, b] of [[0, 0], [-1, 0], [1.5, 0], ['abc', 0], [100, -1], [100, 0.5]]) expect(() => validateCustomCharge(a, b)).toThrow()
+    for (const [a, b] of [[0, 0], [-1, 0], [1.5, 0], ['abc', 0], [100, -1], [100, 0.5], [true, 0], ['0x10', 0], [[5], 0], [100, true], ['1e3', 0], [' 100', 0]] as [unknown, unknown][]) expect(() => validateCustomCharge(a, b)).toThrow()
   })
 })

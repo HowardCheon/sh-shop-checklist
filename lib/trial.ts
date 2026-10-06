@@ -2,7 +2,7 @@
 import { supabase } from '@/lib/supabase'
 import { recordCustomerHistory } from '@/lib/booking/admin'
 import { TRIAL_PACKAGES, kstToday, trialBadge, type TrialCode, type TrialKind, type TrialPackageRow, type TrialUseRow } from '@/lib/booking/trial'
-import { describePayment, rpc, type Payment, type PaymentMethod } from '@/lib/payments'
+import { PaymentError, describePayment, rpc, type Payment, type PaymentMethod } from '@/lib/payments'
 
 const pkgLabel = (p: TrialPackageRow) => TRIAL_PACKAGES[p.package_code as TrialCode]?.label ?? p.package_code
 const useLabel = (u: TrialUseRow) => (u.kind === 'basic' ? '베이직' : `스페셜 - ${u.care_name}`)
@@ -61,8 +61,16 @@ export const trialUseLabel = useLabel
 export async function cancelReservationTrialUses(reservationId: number) {
   const { data, error } = await supabase.from('sh_shop_trial_uses').select('id').eq('reservation_id', reservationId).eq('status', 'used')
   if (error) throw error
-  for (const u of data ?? []) await cancelTrialUse(u.id)
-  return data?.length ?? 0
+  let count = 0
+  for (const u of data ?? []) {
+    try {
+      await cancelTrialUse(u.id)
+      count++
+    } catch (e) {
+      if (!(e instanceof PaymentError && e.code === 'ALREADY_CANCELLED')) throw e // 동시 요청이 먼저 복원한 경우는 무시
+    }
+  }
+  return count
 }
 
 export async function changeTrialPrice(packageId: number, price: number, otherMethod: PaymentMethod | null) {

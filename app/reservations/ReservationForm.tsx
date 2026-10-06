@@ -81,7 +81,8 @@ export default function ReservationForm({ initial, products, date, onSave, onCan
         const next = { ...f, [k]: val }
         // 이름·연락처를 직접 고치면 선택한 고객 연결 해제
         if (k === 'customer_name' || k === 'customer_phone') next.customer_id = ''
-        if (k === 'product_id') {
+        // 완료(결제된) 방문은 금액을 자동으로 바꾸지 않음 — 결제 기록이 함께 바뀌므로 직접 입력할 때만
+        if (k === 'product_id' && !completed) {
           const p = products.find(p => p.id === Number(val))
           if (p) next.price = priceFor(p, isMember).toString()
         }
@@ -94,7 +95,7 @@ export default function ReservationForm({ initial, products, date, onSave, onCan
     const member = prepaidTotal(c) > 0
     setForm(f => {
       const p = products.find(p => p.id === Number(f.product_id))
-      return { ...f, customer_name: c.name, customer_phone: fmtPhone(c.phone), customer_id: String(c.id), price: p ? priceFor(p, member).toString() : f.price }
+      return { ...f, customer_name: c.name, customer_phone: fmtPhone(c.phone), customer_id: String(c.id), price: p && !completed ? priceFor(p, member).toString() : f.price }
     })
     setShowPicker(false)
   }

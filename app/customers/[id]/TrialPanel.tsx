@@ -79,12 +79,12 @@ export default function TrialPanel({ customerId, refreshKey, onChanged }: { cust
     const def = reg ? TRIAL_PACKAGES[reg.code] : null
     const usePrepaid = !!reg?.usePrepaid && hasBalance
     const price = reg ? Number(reg.price) : 0
-    const priceValid = Number.isInteger(price) && price >= 1
+    const priceValid = reg?.price !== '' && Number.isInteger(price) && price >= 0
     const split = def && usePrepaid ? splitDeduction(price, balance.cash, balance.bonus) : { cash: 0, bonus: 0, other: price }
 
     const handleRegister = async () => {
       if (!reg || !def) return
-      if (!priceValid) { setErr('금액을 1원 이상으로 입력하세요'); return }
+      if (!priceValid) { setErr('금액을 0원 이상으로 입력하세요'); return }
       const ok = await post('register', `/api/customers/${customerId}/trial`, {
         code: reg.code, use_prepaid: usePrepaid, other_method: split.other > 0 ? reg.method : null, price,
       })

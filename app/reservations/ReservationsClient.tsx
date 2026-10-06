@@ -108,7 +108,7 @@ function ReservationDetail({ res, onClose, onStatusChange, onEdit, onComplete }:
   const [changing, setChanging] = useState<string | null>(null)
 
   const change = async (status: string) => {
-    if (res.status === 'completed' && !confirm('완료된 예약입니다. 결제가 취소되고 선불 차감분이 복원됩니다. 계속할까요?')) return
+    if (res.status === 'completed' && !confirm('완료된 예약입니다. 결제가 취소되고 선불·첫체험 차감분이 복원됩니다. 계속할까요?')) return
     setChanging(status)
     await onStatusChange(res.id, status)
     setChanging(null)
@@ -339,6 +339,7 @@ export default function ReservationsClient({ initialReservations, initialDate, o
       body: JSON.stringify({ status }),
     })
     if (!res.ok) setReservations(prev)
+    else loadDay(currentDate) // 결제·첫체험 복원 결과(배지 등) 반영
     if (view === 'month') loadMonth(currentYear, currentMonth)
   }
 

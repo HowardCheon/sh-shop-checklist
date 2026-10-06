@@ -15,8 +15,10 @@ export function bonusFor(amount: number): number {
 
 /** 직접 입력 충전 — 금액 1원 이상, 보너스 0 이상 정수 */
 export function validateCustomCharge(amount: unknown, bonus: unknown) {
-  const a = Number(amount)
-  const b = bonus === undefined || bonus === null || bonus === '' ? 0 : Number(bonus)
+  // 숫자 또는 숫자로만 된 문자열만 허용 (true·[5]·'0x10'·'1e3' 등 거부)
+  const toInt = (v: unknown) => (typeof v === 'number' ? v : typeof v === 'string' && /^\d+$/.test(v) ? Number(v) : NaN)
+  const a = toInt(amount)
+  const b = bonus === undefined || bonus === null || bonus === '' ? 0 : toInt(bonus)
   if (!Number.isInteger(a) || a < 1) throw new BookingError('INVALID_INPUT', '충전 금액을 1원 이상 정수로 입력하세요.')
   if (!Number.isInteger(b) || b < 0) throw new BookingError('INVALID_INPUT', '보너스는 0원 이상 정수로 입력하세요.')
   return { amount: a, bonus: b }

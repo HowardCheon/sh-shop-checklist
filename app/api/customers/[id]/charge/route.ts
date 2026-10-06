@@ -11,7 +11,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   let bonus: number
   let value = Number(amount)
   try {
-    if (custom) {
+    if (custom === true) {
       const v = validateCustomCharge(amount, customBonus)
       value = v.amount
       bonus = v.bonus
@@ -23,7 +23,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   try {
-    const customer = await charge(Number(id), value, bonus, memo?.trim() || (custom ? '직접 충전' : null))
+    const customer = await charge(Number(id), value, bonus, memo?.trim() || (custom === true ? '직접 충전' : null))
     return NextResponse.json({ customer })
   } catch (e) {
     const { body, status } = paymentErrorResponse(e)

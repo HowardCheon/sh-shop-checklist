@@ -27,7 +27,7 @@ const RPC_ERRORS: Record<string, [number, string]> = {
 }
 
 export class PaymentError extends Error {
-  constructor(readonly status: number, message: string) {
+  constructor(readonly status: number, message: string, readonly code?: string) {
     super(message)
   }
 }
@@ -36,7 +36,7 @@ export async function rpc<T>(fn: string, args: Record<string, unknown>): Promise
   const { data, error } = await supabase.rpc(fn, args)
   if (error) {
     const code = Object.keys(RPC_ERRORS).find(k => error.message?.includes(k))
-    if (code) throw new PaymentError(...RPC_ERRORS[code])
+    if (code) throw new PaymentError(...RPC_ERRORS[code], code)
     console.error(`${fn} 실패`, error)
     throw new PaymentError(500, '처리에 실패했습니다')
   }

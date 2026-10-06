@@ -102,10 +102,42 @@ try {
   r = await call('PATCH', `/api/trial/${pkg3.id}`, { price: 120000, other_method: 'cash' })
   check('결제수단 지정하면 올림 → 기타 21,000 현금', r.status === 200 && r.body.payment.other_amount === 21000 && r.body.payment.other_method === 'cash', r)
 
-  // 9. 예약 목록에 첫체험 정보
+  // 10. 정리 항목 (리뷰 보류분)
+  // 결제가 이미 취소됐는데 예약·첫체험 복원이 안 된 상태 → 결제 취소 재시도로 복구
+  r = await newResv(cid, '010-9999-0051', '15:00', PLASMA)
+  const resv3 = r.body
+  r = await call('POST', `/api/reservations/${resv3.id}/complete`, { amount: 0, trial: { package_id: pkg.id, kind: 'special', care_name: '상체' } })
+  const pay3 = r.body.payment
+  await sql(`update sh_shop_payments set status = 'voided', voided_at = now() where id = ${pay3.id}`) // 반쯤 처리된 상태 재현
+  r = await call('POST', `/api/payments/${pay3.id}/void`)
+  const r3 = await sql(`select status from sh_shop_reservations where id = ${resv3.id}`)
+  const u3 = await sql(`select status from sh_shop_trial_uses where reservation_id = ${resv3.id}`)
+  check('이미 취소된 결제 재취소 → 예약·첫체험 복원 마무리', r.status === 409 && r3[0]?.status === 'scheduled' && u3.every(x => x.status === 'cancelled'), [r, r3, u3])
+
+  // 완료 → 예약 동시 2번 → 둘 다 성공
+  r = await call('POST', `/api/reservations/${resv3.id}/complete`, { amount: 0, trial: { package_id: pkg.id, kind: 'special', care_name: '상체' } })
+  const both = await Promise.all([1, 2].map(() => call('PUT', `/api/reservations/${resv3.id}`, { status: 'scheduled' })))
+  check('완료→예약 동시 2번 모두 200', both.every(x => x.status === 200), both.map(x => [x.status, x.body?.error]))
+
+  // 완료 예약 삭제는 막고 취소 먼저 안내
+  r = await call('POST', `/api/reservations/${resv3.id}/complete`, { amount: 0, trial: { package_id: pkg.id, kind: 'special', care_name: '상체' } })
+  r = await call('DELETE', `/api/reservations/${resv3.id}`)
+  check('완료 예약 삭제 → 409', r.status === 409, r)
+
+  // 직접 충전 타입 엄격
+  for (const [label, body] of [['custom:"false"', { custom: 'false', amount: 300000 }], ['amount:true', { custom: true, amount: true }], ['amount:"0x10"', { custom: true, amount: '0x10' }], ['amount:[5]', { custom: true, amount: [5] }]]) {
+    r = await call('POST', `/api/customers/${cid}/charge`, body)
+    check(`직접 충전 ${label} → 400`, r.status === 400, r)
+  }
+
+  // 첫체험 0원(무료 증정) 등록·수정 허용
+  r = await call('POST', '/api/customers', { name: '완료테스트4', phone: '010-9999-0054' })
+  r = await call('POST', `/api/customers/${r.body.id}/trial`, { code: 'trial2', price: 0 })
+  check('첫체험 0원 등록 허용', r.status === 200 && r.body.package.price === 0, r)
+
   r = await call('GET', `/api/reservations?from=${encodeURIComponent(`${day}T00:00:00+09:00`)}&to=${encodeURIComponent(`${day}T23:59:59+09:00`)}`)
   const row = Array.isArray(r.body) ? r.body.find(x => x.id === resv2.id) : null
-  check('예약 목록 행에 첫체험 배지 정보', row?.trial?.label === '첫체험 B0·S3', row?.trial ?? r)
+  check('예약 목록 행에 첫체험 배지 정보', row?.trial?.label === '첫체험 B0·S2', row?.trial ?? r)
 } finally {
   await cleanupTestData()
 }

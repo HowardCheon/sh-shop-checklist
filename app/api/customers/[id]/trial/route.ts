@@ -31,7 +31,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const body = await req.json().catch(() => null)
   if (!body || typeof body !== 'object') return NextResponse.json({ error: '요청 형식 오류' }, { status: 400 })
   const { code, use_prepaid, other_method, price } = body
-  if (price !== undefined && price !== null && (!Number.isInteger(price) || price < 1)) return NextResponse.json({ error: '금액은 1원 이상 정수로 입력하세요' }, { status: 400 })
+  if (price !== undefined && price !== null && (!Number.isInteger(price) || price < 0)) return NextResponse.json({ error: '금액은 0원 이상 정수로 입력하세요' }, { status: 400 })
   if (other_method != null && !METHODS.includes(other_method)) return NextResponse.json({ error: '결제수단 오류' }, { status: 400 })
   try {
     const def = trialPackage(code)

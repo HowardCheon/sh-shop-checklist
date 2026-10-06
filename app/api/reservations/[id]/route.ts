@@ -83,11 +83,14 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
   // 완료 예약의 금액 변경 → 결제 기록 금액도 함께 수정 (실패하면 예약도 수정하지 않음)
   const stayCompleted = existing.status === 'completed' && (status === undefined || status === 'completed')
+  let adjusted: { paymentId: number; oldTotal: number } | null = null
   if (stayCompleted && price !== undefined && price !== null && Number(price) !== existing.price) {
     try {
       const { data: paid } = await supabase.from('sh_shop_payments').select('id').eq('reservation_id', id).eq('status', 'paid').order('created_at', { ascending: false }).limit(1).maybeSingle()
       if (paid) {
+        const { data: before } = await supabase.from('sh_shop_payments').select('total_amount').eq('id', paid.id).single()
         await adjustPayment(paid.id, Number(price), payment_method ?? null)
+        adjusted = { paymentId: paid.id, oldTotal: before?.total_amount ?? 0 }
         changes.push(`결제 금액 변경 ${(existing.price ?? 0).toLocaleString()}원 → ${Number(price).toLocaleString()}원`)
       }
     } catch (e) {
@@ -97,6 +100,10 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   }
 
   const { data, error } = await supabase.from('sh_shop_reservations').update(updates).eq('id', id).select().single()
+  if (error && adjusted) {
+    // 예약 수정 실패 → 먼저 고친 결제 금액 되돌림
+    await adjustPayment(adjusted.paymentId, adjusted.oldTotal, null).catch(e => console.error('결제 금액 롤백 실패', e))
+  }
   if (error?.code === '23P01') return NextResponse.json({ error: '예약 시간 충돌' }, { status: 409 })
   if (error) return NextResponse.json({ error: '수정 실패' }, { status: 500 })
 
@@ -124,6 +131,10 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const { data: existing } = await supabase.from('sh_shop_reservations').select('*').eq('id', id).single()
+  // 완료 예약은 결제·첫체험 차감이 연결돼 있어 바로 삭제하지 않음 — 취소하면 자동 복원된 뒤 삭제
+  if (existing?.status === 'completed') {
+    return NextResponse.json({ error: '완료된 예약은 먼저 취소(또는 예약으로 되돌리기)한 뒤 삭제하세요' }, { status: 409 })
+  }
   const { error } = await supabase.from('sh_shop_reservations').delete().eq('id', id)
   if (error) return NextResponse.json({ error: '삭제 실패' }, { status: 500 })
   if (existing) {
