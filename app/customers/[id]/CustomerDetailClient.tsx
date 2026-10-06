@@ -1,22 +1,28 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import PrepaidPanel from './PrepaidPanel'
 import TrialPanel from './TrialPanel'
-import { calcStats, fmtDate, fmtTime, fmtPrice, STATUS_LABEL, STATUS_COLOR, STATUS_BG, type Customer, type CustomerHistory } from '../customer-utils'
+import ReservationForm, { EMPTY_FORM, saveReservation, type Product, type PaymentMethod } from '../../reservations/ReservationForm'
+import { isoToKst } from '@/lib/booking/time'
+import { calcStats, fmtDate, fmtTime, fmtPrice, STATUS_LABEL, STATUS_COLOR, STATUS_BG, type Customer, type CustomerHistory, type Reservation } from '../customer-utils'
 
 
 /* ── 고객 상세 페이지 ── */
-export default function CustomerDetailClient({ initialCustomer, initialHistory }: { initialCustomer: Customer; initialHistory: CustomerHistory[] }) {
+export default function CustomerDetailClient({ initialCustomer, initialHistory, products }: { initialCustomer: Customer; initialHistory: CustomerHistory[]; products: Product[] }) {
   const router = useRouter()
   const [customer, setCustomer] = useState(initialCustomer)
+  // 방문 이력 수정 후 서버에서 새로 받은 데이터 반영
+  useEffect(() => { setCustomer(initialCustomer) }, [initialCustomer])
+  const [editResv, setEditResv] = useState<Reservation | null>(null)
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState({ name: initialCustomer.name, phone: initialCustomer.phone ?? '', memo: initialCustomer.memo ?? '' })
   const [saving, setSaving] = useState(false)
   const [confirmDel, setConfirmDel] = useState(false)
   const [delText, setDelText] = useState('')
   const [history, setHistory] = useState(initialHistory)
+  useEffect(() => { setHistory(initialHistory) }, [initialHistory])
   const stats = calcStats(customer)
   const onHistory = useCallback((h: CustomerHistory[]) => setHistory(h), [])
   // 선불·첫체험 카드가 서로의 변경(잔액·이력)을 반영하도록 상대 카드 재조회
@@ -126,13 +132,14 @@ export default function CustomerDetailClient({ initialCustomer, initialHistory }
             <p className="text-xs font-700 text-gray-400 mb-2">예정된 예약</p>
             <div className="space-y-1.5">
               {stats.upcoming.map(r => (
-                <div key={r.id} className="flex items-center gap-2 bg-brand-50 rounded-xl px-3 py-2">
+                <button key={r.id} type="button" onClick={() => setEditResv(r)} className="w-full text-left flex items-center gap-2 bg-brand-50 rounded-xl px-3 py-2 active:bg-brand-100">
                   <div className="flex-1">
                     <p className="text-xs font-600 text-gray-700">{r.product_name ?? '(시술 미정)'}</p>
                     <p className="text-[10px] text-gray-400">{fmtDate(r.start_at)} {fmtTime(r.start_at)}</p>
                   </div>
                   {r.price != null && <span className="text-xs text-brand-500 font-600">{fmtPrice(r.price)}</span>}
-                </div>
+                  <span className="text-[10px] text-gray-300">✎</span>
+                </button>
               ))}
             </div>
           </div>
@@ -143,14 +150,15 @@ export default function CustomerDetailClient({ initialCustomer, initialHistory }
             <p className="text-xs font-700 text-gray-400 mb-2">방문 이력</p>
             <div className="space-y-1.5">
               {stats.past.slice(0,10).map(r => (
-                <div key={r.id} className="flex items-center gap-2 bg-white/85 rounded-xl px-3 py-2">
+                <button key={r.id} type="button" onClick={() => setEditResv(r)} className="w-full text-left flex items-center gap-2 bg-white/85 rounded-xl px-3 py-2 active:bg-brand-50">
                   <span className="text-[10px] font-700 px-2 py-0.5 rounded-full shrink-0" style={{ background: STATUS_BG[r.status], color: STATUS_COLOR[r.status] }}>{STATUS_LABEL[r.status]}</span>
                   <div className="flex-1">
                     <p className="text-xs text-gray-700">{r.product_name ?? '-'}</p>
                     <p className="text-[10px] text-gray-400">{fmtDate(r.start_at)}</p>
                   </div>
                   {r.price != null && <span className="text-xs text-gray-500">{fmtPrice(r.price)}</span>}
-                </div>
+                  <span className="text-[10px] text-gray-300">✎</span>
+                </button>
               ))}
             </div>
           </div>
@@ -192,6 +200,39 @@ export default function CustomerDetailClient({ initialCustomer, initialHistory }
           </div>
         )}
       </div>
+      {editResv && (
+        <ReservationForm
+          editId={editResv.id}
+          completed={editResv.status === 'completed'}
+          date={isoToKst(editResv.start_at).date}
+          products={editResv.product_id && !products.some(p => p.id === editResv.product_id)
+            ? [...products, { id: editResv.product_id, name: editResv.product_name ?? '(비활성 시술)', price: editResv.price ?? 0, duration_min: editResv.duration_min ?? 60 }]
+            : products}
+          initial={{
+            ...EMPTY_FORM,
+            customer_name: editResv.customer_name ?? customer.name,
+            customer_phone: editResv.customer_phone ?? customer.phone ?? '',
+            customer_id: String(editResv.customer_id ?? customer.id),
+            product_id: editResv.product_id?.toString() ?? '',
+            date: isoToKst(editResv.start_at).date,
+            time: isoToKst(editResv.start_at).time,
+            price: editResv.price?.toString() ?? '',
+            memo: editResv.memo ?? '',
+          }}
+          onCancel={() => setEditResv(null)}
+          onSave={async (form: typeof EMPTY_FORM, paymentMethod: PaymentMethod | null) => {
+            const allProducts = editResv.product_id && !products.some(p => p.id === editResv.product_id)
+              ? [...products, { id: editResv.product_id, name: editResv.product_name ?? '', price: editResv.price ?? 0, duration_min: editResv.duration_min ?? 60 }]
+              : products
+            const e = await saveReservation({ form, products: allProducts, editId: editResv.id, paymentMethod })
+            if (e) return e
+            setEditResv(null)
+            setPrepaidKey(k => k + 1) // 결제 금액이 바뀌었을 수 있음
+            router.refresh()
+            return null
+          }}
+        />
+      )}
     </div>
   )
 }

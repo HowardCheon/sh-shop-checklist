@@ -53,6 +53,7 @@ export default function PrepaidPanel({ customerId, initialCash, initialBonus, on
   const [busy, setBusy] = useState<string | null>(null)
   const [err, setErr] = useState('')
   const [useForm, setUseForm] = useState<{ amount: string; memo: string } | null>(null)
+  const [customForm, setCustomForm] = useState<{ amount: string; bonus: string } | null>(null)
   const [showLedger, setShowLedger] = useState(false)
 
   const reload = useCallback(async () => {
@@ -88,6 +89,15 @@ export default function PrepaidPanel({ customerId, initialCash, initialBonus, on
   const handleCharge = (opt: typeof CHARGE_OPTIONS[number]) => {
     if (!confirm(`${opt.label}원 충전${opt.bonus ? ` (보너스 ${opt.bonus / 10000}만원)` : ''}을 기록할까요?`)) return
     post(`charge-${opt.amount}`, `/api/customers/${customerId}/charge`, { amount: opt.amount })
+  }
+
+  const handleCustomCharge = async () => {
+    if (!customForm) return
+    const amount = Number(customForm.amount)
+    const bonus = Number(customForm.bonus || 0)
+    if (!confirm(`${fmtPrice(amount)} 충전${bonus ? ` (보너스 ${fmtPrice(bonus)})` : ''}을 기록할까요?`)) return
+    const ok = await post('custom', `/api/customers/${customerId}/charge`, { custom: true, amount, bonus })
+    if (ok) setCustomForm(null)
   }
 
   const handleUse = async () => {
@@ -128,7 +138,20 @@ export default function PrepaidPanel({ customerId, initialCash, initialBonus, on
             {opt.bonus > 0 && <span className="block text-[9px] text-brand-400">보너스 {opt.bonus / 10000}만</span>}
           </button>
         ))}
+        <button onClick={() => setCustomForm(f => f ? null : { amount: '', bonus: '' })} disabled={busy !== null} className="flex-1 py-1.5 rounded-lg text-xs font-600 text-brand-600 bg-white border border-brand-100 disabled:opacity-40">
+          직접 입력
+        </button>
       </div>
+
+      {customForm && (
+        <div className="mt-2 space-y-1.5 rounded-xl bg-gray-50 p-2">
+          <input type="number" inputMode="numeric" className={inp} placeholder="충전 금액 (원)" value={customForm.amount} onChange={e => setCustomForm({ ...customForm, amount: e.target.value })} />
+          <input type="number" inputMode="numeric" className={inp} placeholder="보너스 (원, 없으면 비워두기)" value={customForm.bonus} onChange={e => setCustomForm({ ...customForm, bonus: e.target.value })} />
+          <button onClick={handleCustomCharge} disabled={busy !== null || !(Number(customForm.amount) >= 1)} className="w-full py-2 rounded-lg text-xs font-700 text-white disabled:opacity-40" style={{ background: '#bc7659' }}>
+            {busy === 'custom' ? '처리 중...' : '직접 입력 금액 충전'}
+          </button>
+        </div>
+      )}
 
       {total > 0 && (
         <div className="flex gap-1.5 mt-1.5">

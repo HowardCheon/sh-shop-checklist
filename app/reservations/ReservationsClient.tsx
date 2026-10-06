@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect } from 'react'
 import BrandHeader from '@/components/BrandHeader'
 import { isoToKst, kstNow, addDays } from '@/lib/booking/time'
 import PaymentSheet from './PaymentSheet'
-import DateTimePicker from './DateTimePicker'
+import ReservationForm, { EMPTY_FORM, saveReservation, type Product, type PaymentMethod } from './ReservationForm'
 import { effectivePrice } from '@/lib/booking/pricing'
 
 interface Reservation {
@@ -25,6 +25,7 @@ interface Reservation {
   product?: { price: number; member_price: number | null } | null
   memo: string | null
   customer_message?: string | null
+  trial?: { package_id: number; label: string; expired: boolean } | null
   history?: HistoryItem[]
 }
 
@@ -35,29 +36,6 @@ interface HistoryItem {
   changed_at: string
 }
 
-interface Product {
-  id: number
-  name: string
-  price: number
-  member_price?: number | null
-  duration_min: number | null
-}
-
-interface CustomerOption {
-  id: number
-  name: string
-  phone: string | null
-  prepaid_cash: number | null
-  prepaid_bonus: number | null
-}
-
-const prepaidTotal = (c: CustomerOption) => (c.prepaid_cash ?? 0) + (c.prepaid_bonus ?? 0)
-const fmtPhone = (p: string | null) => {
-  const d = (p ?? '').replace(/\D/g, '')
-  return d.length === 11 ? `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7)}` : p ?? ''
-}
-/* 시술가 — 회원이면 회원가 */
-const priceFor = (p: Product, member: boolean) => (member ? p.member_price ?? p.price : p.price)
 
 interface ClosedDate {
   date: string
@@ -106,155 +84,19 @@ function MemberBadge({ r }: { r: Reservation }) {
     : <span className="text-[10px] font-600 px-2 py-0.5 rounded-full bg-gray-100 text-gray-400 whitespace-nowrap">비회원</span>
 }
 
+/* 첫체험 남은 횟수 배지 — 만료면 빨강 */
+function TrialBadge({ r }: { r: Reservation }) {
+  if (!r.trial) return null
+  return (
+    <span className={`text-[10px] font-700 px-2 py-0.5 rounded-full whitespace-nowrap ${r.trial.expired ? 'bg-red-50 text-red-500' : 'bg-amber-50 text-amber-700'}`}>
+      🎁 {r.trial.label}{r.trial.expired ? ' 만료' : ''}
+    </span>
+  )
+}
+
 const STATUS_LABEL = { scheduled: '예약', completed: '완료', cancelled: '취소' } as const
 const STATUS_COLOR = { scheduled: '#bc7659', completed: '#7c9a7e', cancelled: '#9ca3af' } as const
 const STATUS_BG    = { scheduled: '#faf4f0', completed: '#f0f4ef', cancelled: '#f9fafb' } as const
-
-const EMPTY_FORM = { customer_name: '', customer_phone: '', customer_id: '', product_id: '', date: '', time: '', price: '', memo: '' }
-
-/* ── 예약 폼 ── */
-function ReservationForm({ initial, products, date, onSave, onCancel, editId }: {
-  initial?: typeof EMPTY_FORM; products: Product[]; date: string
-  onSave: (form: typeof EMPTY_FORM) => Promise<string | null>
-  onCancel: () => void; editId?: number
-}) {
-  const [form, setForm] = useState(initial ?? { ...EMPTY_FORM, date })
-  const [saving, setSaving] = useState(false)
-  const [err, setErr] = useState('')
-  const [customers, setCustomers] = useState<CustomerOption[]>([])
-  const [showPicker, setShowPicker] = useState(false)
-
-  // 고객 목록 (선택용)
-  useEffect(() => {
-    fetch('/api/customers').then(r => r.ok ? r.json() : []).then(list => {
-      if (Array.isArray(list)) setCustomers(list.map((c: CustomerOption) => ({
-        id: c.id, name: c.name, phone: c.phone, prepaid_cash: c.prepaid_cash, prepaid_bonus: c.prepaid_bonus,
-      })))
-    })
-  }, [])
-
-  const picked = customers.find(c => c.id === Number(form.customer_id))
-  const isMember = !!picked && prepaidTotal(picked) > 0
-
-  // 이름·전화번호로 고객 검색 (최대 6명)
-  const query = form.customer_name.trim()
-  const digits = query.replace(/\D/g, '')
-  const matches = !query || picked ? [] : customers.filter(c =>
-    c.name.includes(query) || (digits.length >= 3 && (c.phone ?? '').replace(/\D/g, '').includes(digits)),
-  ).slice(0, 6)
-
-  const set = (k: keyof typeof EMPTY_FORM) =>
-    (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-      const val = e.target.value
-      setForm(f => {
-        const next = { ...f, [k]: val }
-        // 이름·연락처를 직접 고치면 선택한 고객 연결 해제
-        if (k === 'customer_name' || k === 'customer_phone') next.customer_id = ''
-        if (k === 'product_id') {
-          const p = products.find(p => p.id === Number(val))
-          if (p) next.price = priceFor(p, isMember).toString()
-        }
-        return next
-      })
-      if (k === 'customer_name') setShowPicker(true)
-    }
-
-  const pickCustomer = (c: CustomerOption) => {
-    const member = prepaidTotal(c) > 0
-    setForm(f => {
-      const p = products.find(p => p.id === Number(f.product_id))
-      return { ...f, customer_name: c.name, customer_phone: fmtPhone(c.phone), customer_id: String(c.id), price: p ? priceFor(p, member).toString() : f.price }
-    })
-    setShowPicker(false)
-  }
-
-  const selectedProduct = products.find(p => p.id === Number(form.product_id))
-
-  const handleSave = async () => {
-    if (!form.customer_name.trim()) { setErr('고객명을 입력하세요'); return }
-    if (!form.date || !form.time)   { setErr('예약 날짜/시간을 선택하세요'); return }
-    setSaving(true); setErr('')
-    const e = await onSave(form)
-    if (e) { setErr(e); setSaving(false) }
-  }
-
-  const inp = "w-full text-sm rounded-xl border border-gray-200 px-3 py-2.5 outline-none bg-gray-50 focus:bg-white focus:border-brand-300 transition-colors"
-  const lbl = "block text-xs font-600 text-gray-500 mb-1"
-
-  return (
-    <div className="fixed inset-0 z-50 flex flex-col justify-end">
-      <div className="absolute inset-0 bg-black/30" onClick={onCancel} />
-      <div className="relative bg-white rounded-t-3xl px-4 pt-5 pb-8 space-y-3 max-h-[90vh] overflow-y-auto">
-        <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-2" />
-        <h2 className="font-serif text-lg font-extrabold text-brand-700">{editId ? '예약 수정' : '예약 추가'}</h2>
-        {err && <p className="text-xs text-red-500 bg-red-50 rounded-lg px-3 py-2">{err}</p>}
-        <div className="grid grid-cols-2 gap-2">
-          <div className="col-span-2">
-            <label className={lbl}>고객명 <span className="text-red-400">*</span></label>
-            <div className="relative">
-              <input className={inp} placeholder="이름 또는 전화번호로 검색" value={form.customer_name} onChange={set('customer_name')}
-                onFocus={() => setShowPicker(true)} onBlur={() => setTimeout(() => setShowPicker(false), 150)} autoComplete="off" />
-              {showPicker && matches.length > 0 && (
-                <ul className="absolute z-10 left-0 right-0 mt-1 bg-white border border-brand-100 rounded-xl shadow-lg overflow-hidden">
-                  {matches.map(c => (
-                    <li key={c.id}>
-                      <button type="button" onMouseDown={e => e.preventDefault()} onClick={() => pickCustomer(c)}
-                        className="w-full flex items-center justify-between gap-2 px-3 py-2 text-left hover:bg-brand-50">
-                        <span className="text-sm text-gray-800">{c.name} <span className="text-xs text-gray-400">{fmtPhone(c.phone)}</span></span>
-                        {prepaidTotal(c) > 0
-                          ? <span className="text-[10px] font-700 px-2 py-0.5 rounded-full bg-brand-50 text-brand-600 whitespace-nowrap">🌸 회원</span>
-                          : <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-400 whitespace-nowrap">비회원</span>}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-            {picked ? (
-              <p className="mt-1 text-[11px] text-brand-600">
-                ✓ 등록 고객 선택됨 · {isMember ? `🌸 회원 (선불 잔액 ${prepaidTotal(picked).toLocaleString()}원) — 회원가 적용` : '비회원'}
-                <button type="button" onClick={() => setForm(f => ({ ...f, customer_id: '' }))} className="ml-2 text-gray-400 underline">선택 해제</button>
-              </p>
-            ) : query && (
-              <p className="mt-1 text-[11px] text-gray-400">목록에서 고르지 않으면 입력한 연락처로 새 고객으로 등록돼요</p>
-            )}
-          </div>
-          <div className="col-span-2">
-            <label className={lbl}>연락처</label>
-            <input className={inp} placeholder="010-0000-0000" value={form.customer_phone} onChange={set('customer_phone')} />
-          </div>
-          <div className="col-span-2">
-            <label className={lbl}>시술 선택</label>
-            <select className={inp} value={form.product_id} onChange={set('product_id')}>
-              <option value="">선택 안 함</option>
-              {products.map(p => (
-                <option key={p.id} value={p.id}>{p.name} {p.duration_min ? `(${p.duration_min}분)` : ''}</option>
-              ))}
-            </select>
-          </div>
-          <div className="col-span-2">
-            <DateTimePicker date={form.date} time={form.time} durationMin={selectedProduct?.duration_min ?? 60} excludeId={editId}
-              onChange={(date, time) => setForm(f => ({ ...f, date, time }))} />
-          </div>
-          <div className="col-span-2">
-            <label className={lbl}>금액 (원)</label>
-            <input type="number" className={inp} placeholder="70000" value={form.price} onChange={set('price')} />
-          </div>
-          <div className="col-span-2">
-            <label className={lbl}>내부 메모 <span className="font-400 text-gray-400">(고객에게 보이지 않음)</span></label>
-            <textarea className={inp} rows={2} placeholder="특이사항 등..." value={form.memo} onChange={set('memo')} />
-          </div>
-        </div>
-        <div className="flex gap-2 pt-1">
-          <button onClick={onCancel} className="flex-1 py-2.5 rounded-xl text-sm font-600 text-gray-500 bg-gray-100">취소</button>
-          <button onClick={handleSave} disabled={saving} className="flex-1 py-2.5 rounded-xl text-sm font-700 text-white disabled:opacity-40" style={{ background: 'linear-gradient(135deg, #bc7659, #cb9175)' }}>
-            {saving ? '저장 중...' : '저장'}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
 
 /* ── 예약 상세 ── */
 function ReservationDetail({ res, onClose, onStatusChange, onEdit, onComplete }: {
@@ -291,6 +133,7 @@ function ReservationDetail({ res, onClose, onStatusChange, onEdit, onComplete }:
           <Row label="날짜/시간" value={`${kstDate(res.start_at)} ${fmtTime(res.start_at)} ~ ${fmtTime(res.end_at)}`} />
           <Row label="접수" value={res.source === 'external' ? '외부 예약' : '매장 등록'} />
           <Row label="회원" value={isMember(res) ? `🌸 회원 (선불 잔액 ${fmtPrice(prepaidOf(res))})` : res.customer_id ? '비회원' : '비회원 (고객 미연결)'} />
+          {res.trial && <Row label="첫체험" value={`🎁 ${res.trial.label}${res.trial.expired ? ' (기간 만료)' : ''}`} />}
           {res.price_type && <Row label="예약 시" value={res.price_type === 'member' ? '회원가로 예약' : '비회원가로 예약'} />}
           {res.product_name && <Row label="시술" value={`${res.product_name}${res.duration_min ? ` (${res.duration_min}분)` : ''}`} />}
           {res.price != null && (
@@ -500,31 +343,9 @@ export default function ReservationsClient({ initialReservations, initialDate, o
   }
 
   /* 예약 저장 (겹침 확인 필요 → API 후 반영) */
-  const handleSave = async (form: typeof EMPTY_FORM) => {
-    const start_at = `${form.date}T${form.time}:00+09:00`
-    const selectedProduct = formProducts.find(p => p.id === Number(form.product_id))
-    const payload = {
-      customer_name: form.customer_name,
-      customer_phone: form.customer_phone || null,
-      customer_id: form.customer_id ? Number(form.customer_id) : null,
-      product_id: form.product_id ? Number(form.product_id) : null,
-      product_name: selectedProduct?.name ?? null,
-      duration_min: selectedProduct?.duration_min ?? 60,
-      start_at,
-      price: form.price ? Number(form.price) : null,
-      memo: form.memo || null,
-    }
-    const method = editTarget ? 'PUT' : 'POST'
-    const url = editTarget ? `/api/reservations/${editTarget.id}` : '/api/reservations'
-    const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
-    const data = await res.json()
-    if (!res.ok) {
-      if (data.conflict) {
-        const c = data.conflict
-        return `${c.customer_name}님 예약(${fmtTime(c.start_at)}~${fmtTime(c.end_at)})과 시간이 겹칩니다`
-      }
-      return data.error ?? '저장 실패'
-    }
+  const handleSave = async (form: typeof EMPTY_FORM, paymentMethod: PaymentMethod | null) => {
+    const e = await saveReservation({ form, products: formProducts, editId: editTarget?.id, paymentMethod })
+    if (e) return e
     setShowForm(false); setEditTarget(null)
     loadDay(currentDate)
     if (view === 'month') loadMonth(currentYear, currentMonth)
@@ -630,6 +451,7 @@ export default function ReservationsClient({ initialReservations, initialDate, o
                         <span className="text-sm font-700 text-gray-800 whitespace-nowrap">{r.customer_name}</span>
                         <span className="text-[10px] font-700 px-2 py-0.5 rounded-full whitespace-nowrap" style={{ background: STATUS_BG[r.status], color: STATUS_COLOR[r.status] }}>{STATUS_LABEL[r.status]}</span>
                         <MemberBadge r={r} />
+                        <TrialBadge r={r} />
                         {r.source === 'external' && <span className="text-[10px] font-700 px-2 py-0.5 rounded-full bg-sky-50 text-sky-600 whitespace-nowrap">외부예약</span>}
                       </div>
                       {r.product_name && <p className="text-xs text-gray-500 mt-0.5">{r.product_name}</p>}
@@ -659,7 +481,7 @@ export default function ReservationsClient({ initialReservations, initialDate, o
       )}
 
       {showForm && (
-        <ReservationForm initial={editInitial} products={formProducts} date={currentDate} onSave={handleSave} onCancel={() => { setShowForm(false); setEditTarget(null) }} editId={editTarget?.id} />
+        <ReservationForm initial={editInitial} products={formProducts} date={currentDate} onSave={handleSave} onCancel={() => { setShowForm(false); setEditTarget(null) }} editId={editTarget?.id} completed={editTarget?.status === 'completed'} />
       )}
 
       {payTarget && (

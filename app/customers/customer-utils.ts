@@ -2,7 +2,13 @@
 
 export interface Reservation {
   id: number
+  product_id?: number | null
   product_name: string | null
+  duration_min?: number | null
+  memo?: string | null
+  customer_name?: string
+  customer_phone?: string | null
+  customer_id?: number | null
   start_at: string
   price: number | null
   status: 'scheduled' | 'completed' | 'cancelled'
