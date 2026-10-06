@@ -47,6 +47,14 @@ try {
   check('예약 생성 201 + 한글 보존', r.status === 201 && r.body.customer_name === '홍길동' && r.body.message === '첫 방문입니다', r)
   const id1 = r.body.id
 
+  // 고객 요청사항과 관리자 내부 메모 분리 — 내부 메모는 고객 조회에 나오지 않아야 함
+  let row = await sql(`select memo, customer_message from sh_shop_reservations where id = ${id1}`)
+  check('고객 메시지는 customer_message 에 저장, 내부 메모는 비어 있음', row[0]?.customer_message === '첫 방문입니다' && row[0]?.memo === null, row)
+  await sql(`update sh_shop_reservations set memo = '내부: 피부 트러블 주의' where id = ${id1}`)
+  r = await call('GET', `/reservations?phone=01099990001&name=${encodeURIComponent('홍길동')}`)
+  const mine = r.body.reservations?.find(x => x.id === id1)
+  check('고객 조회에는 내부 메모 없이 요청사항만', mine?.message === '첫 방문입니다' && !JSON.stringify(r.body).includes('피부 트러블'), r)
+
   if (CHANGE) {
     r = await call('GET', `/availability/programs?date=${TUE}&time=11:30`)
     const withoutExclude = r.body.programs?.length

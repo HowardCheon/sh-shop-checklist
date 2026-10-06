@@ -48,7 +48,7 @@ function reservationDto(r: ReservationRow, now: Date) {
     end_time: isoToKst(r.end_at).time,
     price: r.price,
     price_type: r.price_type,
-    message: r.memo,
+    message: r.customer_message, // 관리자 내부 메모(memo)는 고객에게 노출하지 않음
     status: r.status,
     editable: onlineChangeEnabled() && r.status === 'scheduled' && isEditable(start.date, now),
   }
@@ -239,7 +239,8 @@ export async function createReservation(input: Record<string, unknown>, now = ne
     price_type: member ? 'member' : 'regular',
     status: 'scheduled',
     source: 'external',
-    memo: message,
+    memo: null,
+    customer_message: message,
   })
 
   const notes = [`외부 예약: ${date} ${time} ${program.name}`]
@@ -297,8 +298,8 @@ export async function updateReservation(id: unknown, input: Record<string, unkno
 
   if (input.message !== undefined) {
     const message = cleanMessage(input.message)
-    if (message !== old.memo) {
-      patch.memo = message
+    if (message !== old.customer_message) {
+      patch.customer_message = message
       changes.push('메시지 변경')
     }
   }

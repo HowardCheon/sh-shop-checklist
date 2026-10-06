@@ -39,6 +39,7 @@ export type ReservationRow = {
   status: 'scheduled' | 'completed' | 'cancelled'
   source: string
   memo: string | null
+  customer_message: string | null
 }
 
 export type HistoryActor = 'external' | 'admin'

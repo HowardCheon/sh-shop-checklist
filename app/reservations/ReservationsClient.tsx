@@ -24,6 +24,7 @@ interface Reservation {
   customer?: { prepaid_cash: number; prepaid_bonus: number } | null
   product?: { price: number; member_price: number | null } | null
   memo: string | null
+  customer_message?: string | null
   history?: HistoryItem[]
 }
 
@@ -240,7 +241,7 @@ function ReservationForm({ initial, products, date, onSave, onCancel, editId }: 
             <input type="number" className={inp} placeholder="70000" value={form.price} onChange={set('price')} />
           </div>
           <div className="col-span-2">
-            <label className={lbl}>메모</label>
+            <label className={lbl}>내부 메모 <span className="font-400 text-gray-400">(고객에게 보이지 않음)</span></label>
             <textarea className={inp} rows={2} placeholder="특이사항 등..." value={form.memo} onChange={set('memo')} />
           </div>
         </div>
@@ -298,7 +299,8 @@ function ReservationDetail({ res, onClose, onStatusChange, onEdit, onComplete }:
               <span className="text-xs text-gray-700"><PriceChange r={res} detail /></span>
             </div>
           )}
-          {res.memo && <Row label="메모" value={res.memo} />}
+          {res.customer_message && <Row label="고객 요청" value={res.customer_message} />}
+          {res.memo && <Row label="내부 메모" value={res.memo} />}
         </div>
         {res.status === 'scheduled' && (
           <div className="flex gap-2 mb-4">
@@ -632,6 +634,7 @@ export default function ReservationsClient({ initialReservations, initialDate, o
                       </div>
                       {r.product_name && <p className="text-xs text-gray-500 mt-0.5">{r.product_name}</p>}
                       {(() => { const c = effectivePrice(r).changed; return c && <p className="mt-1"><ChangeLabel changed={c} /></p> })()}
+                      {r.customer_message && <p className="text-xs text-sky-500 mt-0.5 truncate">💬 {r.customer_message}</p>}
                       {r.memo && <p className="text-xs text-gray-400 mt-0.5 truncate">{r.memo}</p>}
                     </div>
                     <div className="text-right shrink-0 ml-2">
