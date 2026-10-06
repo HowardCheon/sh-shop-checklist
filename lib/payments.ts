@@ -21,6 +21,7 @@ const RPC_ERRORS: Record<string, [number, string]> = {
   ALREADY_CANCELLED: [409, '이미 취소되었습니다'],
   HAS_USES: [409, '사용 내역이 있어 등록을 취소할 수 없습니다. 사용을 먼저 취소하세요'],
   INVALID_TRIAL_USE: [400, '사용 종류가 올바르지 않습니다'],
+  TRIAL_PAYMENT: [409, '첫체험 패키지 결제입니다. 첫체험 카드에서 등록 취소로 처리하세요'],
 }
 
 export class PaymentError extends Error {

@@ -5,8 +5,6 @@ import { voidPayment, paymentErrorResponse } from '@/lib/payments'
 /* 결제 취소 — 선불 차감분 복원, 예약 결제면 예약을 '예약' 상태로 되돌림 */
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const { data: trial } = await supabase.from('sh_shop_trial_packages').select('id').eq('payment_id', id).eq('status', 'active').maybeSingle()
-  if (trial) return NextResponse.json({ error: '첫체험 패키지 결제입니다. 첫체험 카드에서 등록 취소로 처리하세요' }, { status: 409 })
   try {
     const payment = await voidPayment(Number(id))
     if (payment.reservation_id) {
