@@ -154,21 +154,21 @@ function SmsPanel({ res, onSent }: { res: Reservation; onSent: (updated: Partial
       {SMS_KINDS.map(k => {
         const at = res[k.at] ?? null
         const st = smsStatus(at, res[k.startAt] ?? null, res.start_at)
+        const tone = st === 'none'
+          ? 'text-white border-transparent'
+          : st === 'stale' ? 'bg-orange-50 border-orange-300 text-orange-700' : 'bg-white border-emerald-200 text-gray-700'
         return (
-          <div key={k.type} className="flex items-center gap-2">
-            {/* 넓은 화면에서는 문구 칸 폭을 고정해 버튼을 바로 옆에 둠 */}
-            <div className="flex-1 sm:flex-none sm:w-56 min-w-0">
-              <p className="text-xs font-600 text-gray-700">{k.label}</p>
-              <p className={`text-[10px] ${st === 'stale' ? 'text-orange-600' : 'text-gray-400'}`}>
-                {st === 'none' ? '보내지 않음' : `${kstDate(at!)} ${fmtTime(at!)} 발송${st === 'stale' ? ' · 이후 예약 시간 변경됨, 다시 보내 주세요' : ''}`}
-              </p>
-            </div>
-            <button onClick={() => send(k)} disabled={!hasPhone || sending !== null}
-              className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-700 border disabled:opacity-30 ${st === 'sent' ? 'text-gray-500 bg-white border-gray-200' : 'text-white border-transparent'}`}
-              style={st === 'sent' ? undefined : { background: '#bc7659' }}>
-              {sending === k.type ? '발송 중...' : st === 'none' ? '보내기' : '다시 보내기'}
-            </button>
-          </div>
+          // 문자 이름·발송 상태·보내기를 하나의 버튼으로
+          <button key={k.type} type="button" onClick={() => send(k)} disabled={!hasPhone || sending !== null}
+            className={`block w-full sm:w-80 text-left rounded-xl border px-3 py-2 transition-colors disabled:opacity-40 active:scale-[0.99] ${tone}`}
+            style={st === 'none' ? { background: '#bc7659' } : undefined}>
+            <span className="block text-sm font-700">
+              ✉ {sending === k.type ? `${k.label} 보내는 중...` : `${k.label} ${st === 'none' ? '보내기' : '다시 보내기'}`}
+            </span>
+            <span className={`block text-[11px] mt-0.5 ${st === 'none' ? 'text-white/80' : st === 'stale' ? 'text-orange-600' : 'text-emerald-600'}`}>
+              {st === 'none' ? '보내지 않음' : `${kstDate(at!)} ${fmtTime(at!)} 발송${st === 'stale' ? ' · 이후 예약 시간 변경됨, 다시 보내 주세요' : ' ✓'}`}
+            </span>
+          </button>
         )
       })}
     </div>
