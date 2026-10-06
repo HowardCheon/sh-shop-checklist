@@ -6,7 +6,8 @@ const BASE = process.argv[2] || 'http://localhost:3210'
 const call = await adminClient(BASE)
 const cleanup = cleanupTestData
 
-const day = new Date(Date.now() + 9 * 3600e3 + 10 * 86400e3).toISOString().slice(0, 10)
+// SMOKE_DAY_OFFSET: 실제 예약과 겹치면 다른 날로 (기본 10일 뒤)
+const day = new Date(Date.now() + 9 * 3600e3 + Number(process.env.SMOKE_DAY_OFFSET || 10) * 86400e3).toISOString().slice(0, 10)
 await cleanup()
 try {
   let r = await call('POST', '/api/reservations', { customer_name: '매장고객', customer_phone: '010-9999-0021', product_id: 2, product_name: '베이직 관리', duration_min: 60, start_at: `${day}T10:00:00+09:00`, price: 80000 })

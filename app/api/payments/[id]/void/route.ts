@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { voidPayment, paymentErrorResponse } from '@/lib/payments'
+import { cancelReservationTrialUses } from '@/lib/trial'
 
-/* 결제 취소 — 선불 차감분 복원, 예약 결제면 예약을 '예약' 상태로 되돌림 */
+/* 결제 취소 — 선불 차감분 복원, 예약 결제면 예약을 '예약' 상태로 되돌리고 그 예약의 첫체험 차감도 복원 */
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   try {
     const payment = await voidPayment(Number(id))
     if (payment.reservation_id) {
+      await cancelReservationTrialUses(payment.reservation_id)
       const { data: reverted } = await supabase
         .from('sh_shop_reservations')
         .update({ status: 'scheduled', updated_at: new Date().toISOString() })

@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { blockTimes, findConflict, linkCustomer, recordCustomerHistory } from '@/lib/booking/admin'
-import { voidReservationPayments, paymentErrorResponse } from '@/lib/payments'
+import { voidReservationPayments, adjustPayment, paymentErrorResponse, type PaymentMethod } from '@/lib/payments'
+import { cancelReservationTrialUses, withTrial } from '@/lib/trial'
+
+const METHODS: PaymentMethod[] = ['card', 'cash', 'transfer']
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -10,13 +13,15 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     supabase.from('sh_shop_reservation_history').select('*').eq('reservation_id', id).order('changed_at', { ascending: true }),
   ])
   if (resRes.error) return NextResponse.json({ error: '조회 실패' }, { status: 404 })
-  return NextResponse.json({ ...resRes.data, history: histRes.data ?? [] })
+  const [row] = await withTrial([resRes.data])
+  return NextResponse.json({ ...row, history: histRes.data ?? [] })
 }
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const body = await req.json()
-  const { customer_name, customer_phone, customer_id, product_id, product_name, duration_min, start_at, price, memo, status } = body
+  const { customer_name, customer_phone, customer_id, product_id, product_name, duration_min, start_at, price, memo, status, payment_method } = body
+  if (payment_method != null && !METHODS.includes(payment_method)) return NextResponse.json({ error: '결제수단 오류' }, { status: 400 })
 
   // 기존 데이터 조회
   const { data: existing } = await supabase.from('sh_shop_reservations').select('*').eq('id', id).single()
@@ -68,6 +73,23 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     try {
       const voided = await voidReservationPayments(Number(id))
       if (voided > 0) changes.push(`결제 ${voided}건 취소(선불 복원)`)
+      const trialRestored = await cancelReservationTrialUses(Number(id))
+      if (trialRestored > 0) changes.push(`첫체험 ${trialRestored}회 복원`)
+    } catch (e) {
+      const { body: errBody, status: errStatus } = paymentErrorResponse(e)
+      return NextResponse.json(errBody, { status: errStatus })
+    }
+  }
+
+  // 완료 예약의 금액 변경 → 결제 기록 금액도 함께 수정 (실패하면 예약도 수정하지 않음)
+  const stayCompleted = existing.status === 'completed' && (status === undefined || status === 'completed')
+  if (stayCompleted && price !== undefined && price !== null && Number(price) !== existing.price) {
+    try {
+      const { data: paid } = await supabase.from('sh_shop_payments').select('id').eq('reservation_id', id).eq('status', 'paid').order('created_at', { ascending: false }).limit(1).maybeSingle()
+      if (paid) {
+        await adjustPayment(paid.id, Number(price), payment_method ?? null)
+        changes.push(`결제 금액 변경 ${(existing.price ?? 0).toLocaleString()}원 → ${Number(price).toLocaleString()}원`)
+      }
     } catch (e) {
       const { body: errBody, status: errStatus } = paymentErrorResponse(e)
       return NextResponse.json(errBody, { status: errStatus })

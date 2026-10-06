@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { blockTimes, findConflict, linkCustomer, recordCustomerHistory } from '@/lib/booking/admin'
+import { withTrial } from '@/lib/trial'
 
 /* 시작/종료 기준으로 날짜 범위 조회 */
 export async function GET(req: NextRequest) {
@@ -18,7 +19,7 @@ export async function GET(req: NextRequest) {
 
   const { data, error } = await query
   if (error) return NextResponse.json({ error: '조회 실패' }, { status: 500 })
-  return NextResponse.json(data ?? [])
+  return NextResponse.json(await withTrial(data ?? []))
 }
 
 export async function POST(req: NextRequest) {

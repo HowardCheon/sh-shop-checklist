@@ -2,6 +2,7 @@ import { connection } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { isValidDate } from '@/lib/booking/time'
 import ReservationsClient from './reservations/ReservationsClient'
+import { withTrial } from '@/lib/trial'
 
 // ?date=YYYY-MM-DD&open=예약id — 텔레그램 알림의 '예약 확인하기' 링크로 해당 날짜·예약 상세를 바로 연다
 export default async function HomePage({ searchParams }: { searchParams: Promise<{ date?: string; open?: string }> }) {
@@ -23,7 +24,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
 
   return (
     <ReservationsClient
-      initialReservations={resResult.data ?? []}
+      initialReservations={await withTrial(resResult.data ?? [])}
       initialDate={day}
       openId={openId}
       products={prodResult.data ?? []}
