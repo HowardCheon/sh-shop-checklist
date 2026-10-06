@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { normalizePhone, maskName } from '../phone'
-import { bonusFor, isMember } from '../prepaid'
+import { bonusFor, isMember, validateCustomCharge } from '../prepaid'
 
 describe('phone', () => {
   it('하이픈/공백/+82 를 정규화한다', () => {
@@ -31,5 +31,15 @@ describe('prepaid', () => {
     expect(isMember({ prepaid_cash: 0, prepaid_bonus: 0 })).toBe(false)
     expect(isMember({ prepaid_cash: 0, prepaid_bonus: 1000 })).toBe(true)
     expect(isMember(null)).toBe(false)
+  })
+})
+
+describe('validateCustomCharge', () => {
+  it('정수 금액·보너스', () => {
+    expect(validateCustomCharge(300000, 30000)).toEqual({ amount: 300000, bonus: 30000 })
+    expect(validateCustomCharge('150000', undefined)).toEqual({ amount: 150000, bonus: 0 })
+  })
+  it('잘못된 값 거부', () => {
+    for (const [a, b] of [[0, 0], [-1, 0], [1.5, 0], ['abc', 0], [100, -1], [100, 0.5]]) expect(() => validateCustomCharge(a, b)).toThrow()
   })
 })

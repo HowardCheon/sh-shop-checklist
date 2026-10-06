@@ -13,6 +13,15 @@ export function bonusFor(amount: number): number {
   return tier.bonus
 }
 
+/** 직접 입력 충전 — 금액 1원 이상, 보너스 0 이상 정수 */
+export function validateCustomCharge(amount: unknown, bonus: unknown) {
+  const a = Number(amount)
+  const b = bonus === undefined || bonus === null || bonus === '' ? 0 : Number(bonus)
+  if (!Number.isInteger(a) || a < 1) throw new BookingError('INVALID_INPUT', '충전 금액을 1원 이상 정수로 입력하세요.')
+  if (!Number.isInteger(b) || b < 0) throw new BookingError('INVALID_INPUT', '보너스는 0원 이상 정수로 입력하세요.')
+  return { amount: a, bonus: b }
+}
+
 /**
  * 선불 차감 분배 — 차감 시점 잔액 비율(실제:보너스), 보너스 몫 내림.
  * DB 함수 sh_shop_pay 와 같은 공식 (결제창 미리보기용)

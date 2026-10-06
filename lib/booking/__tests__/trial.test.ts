@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { kstToday, trialPackage, trialStatus, validateUse } from '../trial'
+import { defaultTrialChoice, kstToday, trialBadge, trialPackage, trialStatus, validateUse } from '../trial'
 
 const pkg = { basic_total: 1, special_total: 3, basic_used: 0, special_used: 1, expires_on: '2026-11-06' }
 
@@ -44,5 +44,29 @@ describe('kstToday', () => {
   it('UTC 15시 이후는 KST 다음날', () => {
     expect(kstToday(Date.parse('2026-10-06T15:30:00Z'))).toBe('2026-10-07')
     expect(kstToday(Date.parse('2026-10-06T14:59:00Z'))).toBe('2026-10-06')
+  })
+})
+
+describe('trialBadge', () => {
+  it('남은 횟수 표시', () => {
+    expect(trialBadge({ basic_total: 1, special_total: 3, basic_used: 0, special_used: 1, expires_on: '2026-12-01' }, '2026-10-06')).toEqual({ label: '첫체험 B1·S2', expired: false })
+  })
+  it('만료 표시', () => {
+    expect(trialBadge({ basic_total: 1, special_total: 1, basic_used: 1, special_used: 0, expires_on: '2026-10-01' }, '2026-10-06')).toEqual({ label: '첫체험 B0·S1', expired: true })
+  })
+  it('남은 횟수 없으면 null', () => {
+    expect(trialBadge({ basic_total: 1, special_total: 1, basic_used: 1, special_used: 1, expires_on: '2026-12-01' }, '2026-10-06')).toBeNull()
+  })
+})
+
+describe('defaultTrialChoice', () => {
+  it('시술명으로 추정', () => {
+    expect(defaultTrialChoice('베이직 피부관리')).toEqual({ kind: 'basic' })
+    expect(defaultTrialChoice('플라즈마 관리')).toEqual({ kind: 'special', care: '플라즈마' })
+    expect(defaultTrialChoice('로즈 해독 케어')).toEqual({ kind: 'special', care: '로즈 해독' })
+    expect(defaultTrialChoice('상체관리')).toEqual({ kind: 'special', care: '상체' })
+    expect(defaultTrialChoice('하체관리')).toEqual({ kind: 'special', care: '하체' })
+    expect(defaultTrialChoice('전신관리')).toBeNull()
+    expect(defaultTrialChoice(null)).toBeNull()
   })
 })
