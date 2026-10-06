@@ -156,7 +156,8 @@ function SmsPanel({ res, onSent }: { res: Reservation; onSent: (updated: Partial
         const st = smsStatus(at, res[k.startAt] ?? null, res.start_at)
         return (
           <div key={k.type} className="flex items-center gap-2">
-            <div className="flex-1 min-w-0">
+            {/* 넓은 화면에서는 문구 칸 폭을 고정해 버튼을 바로 옆에 둠 */}
+            <div className="flex-1 sm:flex-none sm:w-56 min-w-0">
               <p className="text-xs font-600 text-gray-700">{k.label}</p>
               <p className={`text-[10px] ${st === 'stale' ? 'text-orange-600' : 'text-gray-400'}`}>
                 {st === 'none' ? '보내지 않음' : `${kstDate(at!)} ${fmtTime(at!)} 발송${st === 'stale' ? ' · 이후 예약 시간 변경됨, 다시 보내 주세요' : ''}`}
