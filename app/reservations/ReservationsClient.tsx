@@ -6,6 +6,7 @@ import { isoToKst, kstNow, addDays } from '@/lib/booking/time'
 import PaymentSheet from './PaymentSheet'
 import ReservationForm, { EMPTY_FORM, saveReservation, type Product, type PaymentMethod } from './ReservationForm'
 import { effectivePrice } from '@/lib/booking/pricing'
+import { confirmText, remindText, smsBytes, smsStatus, SMS_MAX_BYTES } from '@/lib/booking/sms-templates'
 
 interface Reservation {
   id: number
@@ -26,6 +27,10 @@ interface Reservation {
   memo: string | null
   customer_message?: string | null
   trial?: { package_id: number; label: string; expired: boolean } | null
+  confirm_sms_at?: string | null
+  confirm_sms_start_at?: string | null
+  remind_sms_at?: string | null
+  remind_sms_start_at?: string | null
   history?: HistoryItem[]
 }
 
@@ -94,16 +99,92 @@ function TrialBadge({ r }: { r: Reservation }) {
   )
 }
 
+/* 문자 발송 상태 — 확정·전일 안내, 보낸 뒤 시간이 바뀌면 재발송 필요 */
+const SMS_KINDS = [
+  { type: 'confirm', short: '확정', label: '확정 문자', at: 'confirm_sms_at', startAt: 'confirm_sms_start_at', build: confirmText },
+  { type: 'remind', short: '안내', label: '전일 안내 문자', at: 'remind_sms_at', startAt: 'remind_sms_start_at', build: remindText },
+] as const
+
+function SmsBadges({ r }: { r: Reservation }) {
+  if (r.status === 'cancelled') return null
+  return (
+    <>
+      {SMS_KINDS.map(k => {
+        const st = smsStatus(r[k.at] ?? null, r[k.startAt] ?? null, r.start_at)
+        if (st === 'none') return null
+        return st === 'sent'
+          ? <span key={k.type} className="text-[10px] font-700 px-2 py-0.5 rounded-full whitespace-nowrap bg-emerald-50 text-emerald-600">{k.short}✓</span>
+          : <span key={k.type} className="text-[10px] font-700 px-2 py-0.5 rounded-full whitespace-nowrap bg-orange-50 text-orange-600">{k.short} 재발송 필요</span>
+      })}
+    </>
+  )
+}
+
+/* 예약 상세 — 확정·전일 안내 문자 보내기 */
+function SmsPanel({ res, onSent }: { res: Reservation; onSent: (updated: Partial<Reservation>) => void }) {
+  const [sending, setSending] = useState<string | null>(null)
+  const [err, setErr] = useState('')
+  const hasPhone = /^01\d{8,9}$/.test((res.customer_phone ?? '').replace(/\D/g, ''))
+
+  const send = async (k: typeof SMS_KINDS[number]) => {
+    const text = k.build(res.customer_name.trim(), res.start_at)
+    const bytes = smsBytes(text)
+    const st = smsStatus(res[k.at] ?? null, res[k.startAt] ?? null, res.start_at)
+    const head = st === 'sent' ? '이미 같은 예약 시간으로 보냈어요. 다시 보낼까요?\n\n' : ''
+    const warn = bytes > SMS_MAX_BYTES ? ` — ${SMS_MAX_BYTES}바이트 초과, 장문으로 발송될 수 있어요` : ''
+    if (!confirm(`${head}${k.label}를 보낼까요? (${bytes}바이트${warn})\n\n${text}`)) return
+    setSending(k.type); setErr('')
+    try {
+      const r = await fetch(`/api/reservations/${res.id}/sms`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: k.type }) })
+      const data = await r.json().catch(() => ({}))
+      if (!r.ok) { setErr(data.error ?? '발송 실패'); return }
+      onSent(data.reservation)
+    } catch {
+      setErr('네트워크 오류입니다. 다시 시도하세요')
+    } finally {
+      setSending(null)
+    }
+  }
+
+  return (
+    <div className="rounded-xl border border-brand-100 bg-brand-50/40 p-3 mb-4 space-y-2">
+      <p className="text-xs font-700 text-gray-500">문자 보내기</p>
+      {err && <p className="text-xs text-red-500 bg-red-50 rounded-lg px-3 py-2">{err}</p>}
+      {!hasPhone && <p className="text-[11px] text-gray-400">휴대폰 번호가 없어 보낼 수 없어요</p>}
+      {SMS_KINDS.map(k => {
+        const at = res[k.at] ?? null
+        const st = smsStatus(at, res[k.startAt] ?? null, res.start_at)
+        return (
+          <div key={k.type} className="flex items-center gap-2">
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-600 text-gray-700">{k.label}</p>
+              <p className={`text-[10px] ${st === 'stale' ? 'text-orange-600' : 'text-gray-400'}`}>
+                {st === 'none' ? '보내지 않음' : `${kstDate(at!)} ${fmtTime(at!)} 발송${st === 'stale' ? ' · 이후 예약 시간 변경됨, 다시 보내 주세요' : ''}`}
+              </p>
+            </div>
+            <button onClick={() => send(k)} disabled={!hasPhone || sending !== null}
+              className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-700 border disabled:opacity-30 ${st === 'sent' ? 'text-gray-500 bg-white border-gray-200' : 'text-white border-transparent'}`}
+              style={st === 'sent' ? undefined : { background: '#bc7659' }}>
+              {sending === k.type ? '발송 중...' : st === 'none' ? '보내기' : '다시 보내기'}
+            </button>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 const STATUS_LABEL = { scheduled: '예약', completed: '완료', cancelled: '취소' } as const
 const STATUS_COLOR = { scheduled: '#bc7659', completed: '#7c9a7e', cancelled: '#9ca3af' } as const
 const STATUS_BG    = { scheduled: '#faf4f0', completed: '#f0f4ef', cancelled: '#f9fafb' } as const
 
 /* ── 예약 상세 ── */
-function ReservationDetail({ res, onClose, onStatusChange, onEdit, onComplete }: {
+function ReservationDetail({ res, onClose, onStatusChange, onEdit, onComplete, onSmsSent }: {
   res: Reservation; onClose: () => void
   onStatusChange: (id: number, status: string) => Promise<void>
   onEdit: (r: Reservation) => void
   onComplete: (r: Reservation) => void
+  onSmsSent: (updated: Partial<Reservation>) => void
 }) {
   const [changing, setChanging] = useState<string | null>(null)
 
@@ -145,6 +226,7 @@ function ReservationDetail({ res, onClose, onStatusChange, onEdit, onComplete }:
           {res.customer_message && <Row label="고객 요청" value={res.customer_message} />}
           {res.memo && <Row label="내부 메모" value={res.memo} />}
         </div>
+        {res.status === 'scheduled' && <SmsPanel res={res} onSent={onSmsSent} />}
         {res.status === 'scheduled' && (
           <div className="flex gap-2 mb-4">
             <button onClick={() => { onClose(); onComplete(res) }} disabled={!!changing} className="flex-1 py-2.5 rounded-xl text-sm font-700 text-white" style={{ background: '#7c9a7e' }}>
@@ -401,12 +483,12 @@ export default function ReservationsClient({ initialReservations, initialDate, o
       }>
         {view === 'day' ? (
           <div className="flex items-center gap-3">
-            <button onClick={() => moveDay(-1)} className="w-8 h-8 rounded-full border border-brand-200 flex items-center justify-center text-brand-500">‹</button>
+            <button onClick={() => moveDay(-1)} aria-label="이전 날" className="w-9 h-9 rounded-full border-2 border-brand-500 bg-white flex items-center justify-center text-brand-700 text-xl font-extrabold shadow-sm active:bg-brand-50">‹</button>
             <div className="flex-1 text-center">
               <span className="font-serif text-base font-bold text-brand-700">{currentDate}</span>
               <span className="text-xs text-brand-400 ml-1">({dateLabel})</span>
             </div>
-            <button onClick={() => moveDay(1)} className="w-8 h-8 rounded-full border border-brand-200 flex items-center justify-center text-brand-500">›</button>
+            <button onClick={() => moveDay(1)} aria-label="다음 날" className="w-9 h-9 rounded-full border-2 border-brand-500 bg-white flex items-center justify-center text-brand-700 text-xl font-extrabold shadow-sm active:bg-brand-50">›</button>
           </div>
         ) : (
           <div className="flex items-center gap-3">
@@ -453,6 +535,7 @@ export default function ReservationsClient({ initialReservations, initialDate, o
                         <span className="text-[10px] font-700 px-2 py-0.5 rounded-full whitespace-nowrap" style={{ background: STATUS_BG[r.status], color: STATUS_COLOR[r.status] }}>{STATUS_LABEL[r.status]}</span>
                         <MemberBadge r={r} />
                         <TrialBadge r={r} />
+                        <SmsBadges r={r} />
                         {r.source === 'external' && <span className="text-[10px] font-700 px-2 py-0.5 rounded-full bg-sky-50 text-sky-600 whitespace-nowrap">외부예약</span>}
                       </div>
                       {r.product_name && <p className="text-xs text-gray-500 mt-0.5">{r.product_name}</p>}
@@ -494,7 +577,10 @@ export default function ReservationsClient({ initialReservations, initialDate, o
       )}
 
       {detailTarget && (
-        <ReservationDetail res={detailTarget} onClose={() => setDetailTarget(null)} onStatusChange={handleStatusChange} onEdit={(r) => { setDetailTarget(null); setEditTarget(r); setShowForm(true) }} onComplete={setPayTarget} />
+        <ReservationDetail res={detailTarget} onClose={() => setDetailTarget(null)} onStatusChange={handleStatusChange} onEdit={(r) => { setDetailTarget(null); setEditTarget(r); setShowForm(true) }} onComplete={setPayTarget} onSmsSent={updated => {
+          setDetailTarget(d => d ? { ...d, ...updated } : d)
+          setReservations(list => list.map(r => r.id === updated.id ? { ...r, ...updated } : r))
+        }} />
       )}
     </div>
   )
