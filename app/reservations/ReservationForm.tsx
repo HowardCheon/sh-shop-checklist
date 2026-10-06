@@ -48,7 +48,8 @@ export default function ReservationForm({ initial, products, date, onSave, onCan
   completed?: boolean
 }) {
   const [form, setForm] = useState(initial ?? { ...EMPTY_FORM, date })
-  const [method, setMethod] = useState<PaymentMethod>('card')
+  // 선택한 경우에만 전송 — 안 고르면 기존 결제수단 유지
+  const [method, setMethod] = useState<PaymentMethod | null>(null)
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
   const [customers, setCustomers] = useState<CustomerOption[]>([])
@@ -172,10 +173,10 @@ export default function ReservationForm({ initial, products, date, onSave, onCan
           </div>
           {completed && (
             <div className="col-span-2 rounded-xl bg-brand-50/60 border border-brand-100 p-2">
-              <p className="text-[11px] text-brand-700 mb-1.5">완료된 방문이에요. 금액을 바꾸면 결제 기록 금액도 함께 수정돼요 (선불 사용분은 그대로, 늘어난 금액의 결제수단)</p>
+              <p className="text-[11px] text-brand-700 mb-1.5">완료된 방문이에요. 금액을 바꾸면 결제 기록 금액도 함께 수정돼요. 선불 사용분은 그대로이고, 결제수단은 바꿀 때만 고르세요(안 고르면 기존 수단 유지)</p>
               <div className="flex gap-1.5">
                 {METHODS.map(m => (
-                  <button key={m.value} type="button" onClick={() => setMethod(m.value)} className="flex-1 py-1.5 rounded-lg text-xs font-600 border"
+                  <button key={m.value} type="button" onClick={() => setMethod(cur => cur === m.value ? null : m.value)} className="flex-1 py-1.5 rounded-lg text-xs font-600 border"
                     style={method === m.value ? { background: '#bc7659', color: '#fff', borderColor: '#bc7659' } : { color: '#a5624a', borderColor: '#f3e6de' }}>
                     {m.label}
                   </button>
