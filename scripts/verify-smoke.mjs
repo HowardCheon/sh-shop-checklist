@@ -4,8 +4,8 @@ import { check, cleanupTestData, env, finish, sql } from './smoke-lib.mjs'
 
 const BASE = (process.argv[2] || 'http://localhost:3210') + '/api/public/v1'
 const H = { Authorization: `Bearer ${env.BOOKING_API_KEY}`, 'Content-Type': 'application/json' }
-const call = async (method, path, body) => {
-  const res = await fetch(BASE + path, { method, headers: H, body: body ? JSON.stringify(body) : undefined })
+const call = async (method, path, body, headers = {}) => {
+  const res = await fetch(BASE + path, { method, headers: { ...H, ...headers }, body: body ? JSON.stringify(body) : undefined })
   return { status: res.status, body: await res.json().catch(() => null) }
 }
 const kst = new Date(Date.now() + 9 * 3600e3)
@@ -76,6 +76,24 @@ try {
   for (let i = 0; i < 5; i++) await call('POST', '/verifications/confirm', { phone: '01099990203', code: '9999' })
   r = await call('POST', '/verifications/confirm', { phone: '01099990203', code: '0000' })
   check('5회 틀린 뒤에는 맞는 번호도 거부', r.status === 400 && r.body.error.code === 'CODE_EXPIRED', r)
+
+  // 동시 오답 20건 → 5회 제한이 그대로 지켜져야 함
+  await call('POST', '/verifications', { phone: '01099990204' })
+  await Promise.all(Array.from({ length: 20 }, () => call('POST', '/verifications/confirm', { phone: '01099990204', code: '9999' })))
+  r = await call('POST', '/verifications/confirm', { phone: '01099990204', code: '0000' })
+  check('동시 오답 20건 뒤에는 맞는 번호도 거부', r.status === 400 && r.body.error.code === 'CODE_EXPIRED', r)
+
+  // 같은 번호 동시 요청 5건 → 1건만 발송
+  const burst = await Promise.all(Array.from({ length: 5 }, () => call('POST', '/verifications', { phone: '01099990205' })))
+  check('같은 번호 동시 요청은 1건만 발송', burst.filter(x => x.status === 200).length === 1, burst.map(x => x.status))
+
+  // 같은 IP 에서 시간당 10건 초과 → 429 (홈페이지 중계기가 X-Client-IP 로 실제 IP 전달)
+  const ipH = { 'X-Client-IP': 'smoke-ip-verify' }
+  const byIp = []
+  for (let i = 0; i < 11; i++) byIp.push((await call('POST', '/verifications', { phone: `010999903${String(i).padStart(2, '0')}` }, ipH)).status)
+  check('같은 IP 10건까지 허용, 11번째 429', byIp.slice(0, 10).every(s => s === 200) && byIp[10] === 429, byIp)
+  r = await call('POST', '/verifications', { phone: '01099990399' }, { 'X-Client-IP': 'smoke-ip-other' })
+  check('다른 IP 는 영향 없음', r.status === 200, r)
 
   const stored = await sql(`select code_hash, token_hash from sh_shop_phone_verifications where phone = '${A}' limit 1`)
   check('DB 에는 해시만 저장', stored[0] && stored[0].code_hash.length === 64 && !stored[0].code_hash.includes('0000'), stored)

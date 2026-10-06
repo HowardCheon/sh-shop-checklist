@@ -19,6 +19,16 @@ export function errorResponse(e: unknown) {
   return NextResponse.json({ error: { code: err.code, message: err.message } }, { status: err.status })
 }
 
+/**
+ * 고객 실제 IP — 홈페이지 중계기가 X-Client-IP 로 전달(API Key 인증된 요청만 도달하므로 신뢰).
+ * 없으면 직접 호출자의 IP(Vercel 이 설정하는 x-forwarded-for).
+ */
+export function clientIp(req: NextRequest): string | null {
+  const forwarded = req.headers.get('x-client-ip')?.trim()
+  if (forwarded) return forwarded.slice(0, 64)
+  return req.headers.get('x-forwarded-for')?.split(',')[0].trim() || null
+}
+
 /** JSON body 파싱 (형식 오류 → INVALID_INPUT) */
 export async function readJson(req: NextRequest): Promise<Record<string, unknown>> {
   try {

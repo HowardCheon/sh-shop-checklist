@@ -1,4 +1,4 @@
-/* 휴대폰 SMS 본인 인증 — 4자리 번호(3분), 5회 오입력 시 폐기, 재발송 1분 1회·1시간 5회, 인증 토큰 30분 */
+/* 휴대폰 SMS 본인 인증 — 4자리 번호(3분), 5회 오입력 시 폐기, 재발송 1분 1회·번호당 1시간 5회·IP당 1시간 10회, 인증 토큰 30분 */
 import { createHash, randomBytes, randomInt, timingSafeEqual } from 'node:crypto'
 import { supabase } from '@/lib/supabase'
 import { sendSms, smsConfigured, verificationText } from '@/lib/solapi'
@@ -32,39 +32,30 @@ function sameHash(a: string, b: string) {
 
 const iso = (msFromNow: number) => new Date(Date.now() + msFromNow).toISOString()
 
-export async function requestCode(rawPhone: unknown) {
+const MAX_PER_IP_HOUR = 10
+
+const LIMIT_ERRORS: Record<string, string> = {
+  RESEND_TOO_SOON: '인증번호는 1분 후에 다시 받을 수 있어요.',
+  PHONE_HOURLY_LIMIT: '인증 요청이 너무 많아요. 1시간 후 다시 시도하거나 매장으로 전화 주세요.',
+  IP_HOURLY_LIMIT: '인증 요청이 너무 많아요. 잠시 후 다시 시도하거나 매장으로 전화 주세요.',
+  DAILY_LIMIT: '지금은 인증번호를 보낼 수 없어요. 매장으로 전화 주세요.',
+}
+
+/** 인증번호 발송 — 제한 검사·기록은 DB 함수가 잠금 안에서 한 번에 처리. ip 는 고객 실제 IP(없으면 IP 제한 생략) */
+export async function requestCode(rawPhone: unknown, ip: string | null = null) {
   const phone = normalizePhone(rawPhone)
 
-  const since = iso(-3600 * 1000)
-  const { data: recent, error } = await supabase
-    .from('sh_shop_phone_verifications')
-    .select('created_at')
-    .eq('phone', phone)
-    .gte('created_at', since)
-    .order('created_at', { ascending: false })
-  if (error) throw new BookingError('INTERNAL', '잠시 후 다시 시도해 주세요.')
-  const last = recent?.[0] ? Date.parse(recent[0].created_at) : 0
-  if (Date.now() - last < RESEND_GAP_SEC * 1000) {
-    throw new BookingError('TOO_MANY_REQUESTS', '인증번호는 1분 후에 다시 받을 수 있어요.')
-  }
-  if ((recent?.length ?? 0) >= MAX_PER_HOUR) {
-    throw new BookingError('TOO_MANY_REQUESTS', '인증 요청이 너무 많아요. 1시간 후 다시 시도하거나 매장으로 전화 주세요.')
-  }
-  const { count } = await supabase
-    .from('sh_shop_phone_verifications')
-    .select('id', { count: 'exact', head: true })
-    .gte('created_at', iso(-24 * 3600 * 1000))
-  if ((count ?? 0) >= MAX_PER_DAY_TOTAL) {
-    throw new BookingError('TOO_MANY_REQUESTS', '지금은 인증번호를 보낼 수 없어요. 매장으로 전화 주세요.')
-  }
-
   const code = dryRun() ? '0000' : String(randomInt(0, 10000)).padStart(4, '0')
-  const { error: insErr } = await supabase.from('sh_shop_phone_verifications').insert({
-    phone,
-    code_hash: hash(`${phone}:${code}`),
-    expires_at: iso(CODE_TTL_SEC * 1000),
+  const { error } = await supabase.rpc('sh_shop_verification_create', {
+    p_phone: phone, p_ip: ip, p_code_hash: hash(`${phone}:${code}`), p_ttl_sec: CODE_TTL_SEC,
+    p_resend_gap_sec: RESEND_GAP_SEC, p_max_per_hour: MAX_PER_HOUR, p_max_per_ip_hour: MAX_PER_IP_HOUR, p_max_per_day: MAX_PER_DAY_TOTAL,
   })
-  if (insErr) throw new BookingError('INTERNAL', '잠시 후 다시 시도해 주세요.')
+  if (error) {
+    const limit = Object.keys(LIMIT_ERRORS).find(k => error.message?.includes(k))
+    if (limit) throw new BookingError('TOO_MANY_REQUESTS', LIMIT_ERRORS[limit])
+    console.error('인증번호 기록 실패', error)
+    throw new BookingError('INTERNAL', '잠시 후 다시 시도해 주세요.')
+  }
 
   if (!dryRun()) {
     const sent = await sendSms(phone, verificationText(code))
@@ -91,14 +82,15 @@ export async function confirmCode(rawPhone: unknown, rawCode: unknown) {
   if (!row || row.verified_at || Date.parse(row.expires_at) < Date.now()) {
     throw new BookingError('CODE_EXPIRED', '인증번호가 만료되었어요. 다시 받아 주세요.')
   }
-  if (row.attempts >= MAX_ATTEMPTS) {
+  // 비교 전에 시도 1회를 원자적으로 차감 → 동시 오답으로 5회 제한을 넘을 수 없음
+  const { data: attempts, error: attemptErr } = await supabase.rpc('sh_shop_verification_attempt', { p_id: row.id, p_max: MAX_ATTEMPTS })
+  if (attemptErr) throw new BookingError('INTERNAL', '잠시 후 다시 시도해 주세요.')
+  if (attempts == null) {
     throw new BookingError('CODE_EXPIRED', '입력 횟수를 초과했어요. 인증번호를 다시 받아 주세요.')
   }
 
   if (!sameHash(row.code_hash, hash(`${phone}:${code}`))) {
-    // 동시 요청에도 횟수 초과가 되지 않도록 현재 값 조건으로 증가
-    await supabase.from('sh_shop_phone_verifications').update({ attempts: row.attempts + 1 }).eq('id', row.id).eq('attempts', row.attempts)
-    const left = MAX_ATTEMPTS - row.attempts - 1
+    const left = MAX_ATTEMPTS - attempts
     throw new BookingError('CODE_MISMATCH', left > 0 ? `인증번호가 맞지 않아요. (남은 횟수 ${left}회)` : '입력 횟수를 초과했어요. 인증번호를 다시 받아 주세요.')
   }
 
