@@ -186,3 +186,17 @@ export async function recordHistory(params: {
   const results = await Promise.all(tasks)
   for (const r of results) if (r.error) console.error('이력 기록 실패', r.error)
 }
+
+/** 온라인(고객이 직접) 예약 신규·변경·취소 건수 — 고객 이력의 actor='external' 기준 */
+export async function countOnlineBookings(fromIso: string, toIso: string): Promise<{ created: number; updated: number; cancelled: number } | { error: string }> {
+  const { data, error } = await supabase
+    .from('sh_shop_customer_history')
+    .select('action')
+    .eq('actor', 'external')
+    .in('action', ['reservation_created', 'reservation_updated', 'reservation_cancelled'])
+    .gte('created_at', fromIso)
+    .lt('created_at', toIso)
+  if (error) return { error: error.message }
+  const count = (a: string) => (data ?? []).filter(r => r.action === a).length
+  return { created: count('reservation_created'), updated: count('reservation_updated'), cancelled: count('reservation_cancelled') }
+}
