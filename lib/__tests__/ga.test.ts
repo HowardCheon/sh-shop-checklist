@@ -59,6 +59,8 @@ describe('이름 정리', () => {
     expect(cityLabel('Seongnam-si')).toBe('성남')
     expect(cityLabel('(not set)')).toBe('알 수 없음')
     expect(cityLabel('Busan')).toBe('부산')
+    expect(cityLabel('Gwangmyeong-si')).toBe('광명')
+    expect(cityLabel('Gimpo-si')).toBe('김포')
     expect(cityLabel('Tokyo')).toBe('Tokyo')
   })
   it('페이지', () => {

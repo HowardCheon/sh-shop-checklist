@@ -74,6 +74,8 @@ const CITIES: Record<string, string> = {
   seoul: '서울', hanam: '하남', seongnam: '성남', guri: '구리', namyangju: '남양주', gwangju: '광주', incheon: '인천',
   suwon: '수원', yongin: '용인', goyang: '고양', bucheon: '부천', anyang: '안양', busan: '부산', daegu: '대구',
   daejeon: '대전', ulsan: '울산', sejong: '세종', hwaseong: '화성', pyeongtaek: '평택', uijeongbu: '의정부', yangpyeong: '양평',
+  gwangmyeong: '광명', gimpo: '김포', siheung: '시흥', ansan: '안산', gunpo: '군포', uiwang: '의왕', gwacheon: '과천',
+  paju: '파주', yangju: '양주', icheon: '이천', osan: '오산', anseong: '안성', yeoju: '여주', gapyeong: '가평',
 }
 
 export function cityLabel(city: string) {
