@@ -5,6 +5,7 @@ import { fits, type Block } from '@/lib/booking/availability'
 import { closedBlocks } from '@/lib/booking/closed-slots'
 import { BUFFER_MIN, candidateTimes } from '@/lib/booking/rules'
 import { addDays, kstNow, minutesOf, timeOf } from '@/lib/booking/time'
+import { MINUTES, fromParts, outsideHours, toParts, type AmPm } from '@/lib/booking/manual-time'
 
 const WEEK = ['일', '월', '화', '수', '목', '금', '토']
 const DAYS = 14
@@ -29,7 +30,24 @@ export default function DateTimePicker({ date, time, durationMin, excludeId, onC
   const [blocks, setBlocks] = useState<Block[] | null>(null)
   // 관리자 휴무시간 블록 — 선택은 가능하지만 '휴무시간'으로 표시
   const [closedB, setClosedB] = useState<Block[]>([])
-  const [manual, setManual] = useState(() => !!time && !!date && !candidateTimes(date).includes(time))
+  // '다른 시간' 입력 — 버튼에 없는 시각(영업시간 외 등)
+  const [showOther, setShowOther] = useState(() => !!date && (!candidateTimes(date).length || (!!time && !candidateTimes(date).includes(time))))
+  const [other, setOtherState] = useState(() => toParts(time))
+  const setOther = (next: { ampm: AmPm; hour: number; minute: number }) => {
+    setOtherState(next)
+    onChange(date, fromParts(next.ampm, next.hour, next.minute))
+  }
+  // 휴무일(시간 버튼 없음)로 바꾸면 '다른 시간'을 바로 펼침
+  useEffect(() => {
+    if (date && candidateTimes(date).length === 0) setShowOther(true)
+  }, [date])
+
+  // 열면 지금 고른 오전/오후·시·분을 바로 적용, 다른 시간이 선택돼 있지 않을 때만 다시 눌러 닫기
+  const openOther = () => {
+    const manualPicked = !!time && !candidateTimes(date).includes(time)
+    if (!showOther) { setShowOther(true); setOther(other) }
+    else if (!manualPicked) setShowOther(false)
+  }
   const calRef = useRef<HTMLInputElement>(null)
   const stripRef = useRef<HTMLDivElement>(null)
 
@@ -103,44 +121,66 @@ export default function DateTimePicker({ date, time, durationMin, excludeId, onC
 
       {/* 시간 */}
       <div>
-        <div className="flex items-center justify-between mb-1">
+        <div className="mb-1">
           <span className="text-xs font-600 text-gray-500">시간 <span className="text-red-400">*</span> <span className="font-400 text-gray-400">({durationMin}분 기준)</span></span>
-          <button type="button" onClick={() => setManual(m => !m)} className="text-[11px] text-brand-500 underline">
-            {manual ? '버튼으로 선택' : '직접 입력 ›'}
+        </div>
+        {slots.length === 0 && (
+          <p className="text-xs text-gray-400 bg-gray-50 rounded-xl px-3 py-3 text-center mb-1.5">휴무일이에요. 예약이 필요하면 ‘다른 시간’으로 입력하세요.</p>
+        )}
+        <div className={`grid grid-cols-4 gap-1.5 ${blocks ? '' : 'opacity-50'}`}>
+          {slots.map(t => {
+            const sel = t === time
+            const free = ok(t)
+            const past = date === today && t < nowTime
+            const closedT = free && inClosed(t)
+            return (
+              <button key={t} type="button" onClick={() => { if (free) { onChange(date, t); setShowOther(false) } }} disabled={!free}
+                className={`${slotCls} ${sel ? 'bg-brand-500 border-brand-500 text-white font-700'
+                  : !free ? 'border-dashed border-gray-200 bg-gray-50 text-gray-300'
+                  : closedT ? 'border-slate-300 bg-slate-100 text-slate-500'
+                  : past ? 'border-gray-100 text-gray-400 hover:bg-brand-50'
+                  : 'border-brand-100 text-gray-700 hover:bg-brand-50'}`}>
+                {t}
+                {!free && <span className="block text-[9px] leading-none">마감</span>}
+                {closedT && <span className="block text-[9px] leading-none">휴무시간</span>}
+              </button>
+            )
+          })}
+          {/* 영업시간 외 등 버튼에 없는 시각 */}
+          <button type="button" onClick={openOther}
+            className={`${slotCls} ${time && !isSlot ? 'bg-brand-500 border-brand-500 text-white font-700' : showOther ? 'border-brand-300 bg-brand-50 text-brand-600' : 'border-dashed border-brand-200 text-brand-500 hover:bg-brand-50'}`}>
+            {time && !isSlot ? time : '＋ 다른 시간'}
+            {time && !isSlot && <span className="block text-[9px] leading-none">직접 입력</span>}
           </button>
         </div>
-        {manual ? (
-          <input type="time" step={600} value={time} onChange={e => onChange(date, e.target.value)}
-            className="w-full text-sm rounded-xl border border-gray-200 px-3 py-2.5 outline-none bg-gray-50 focus:bg-white focus:border-brand-300" />
-        ) : slots.length === 0 ? (
-          <p className="text-xs text-gray-400 bg-gray-50 rounded-xl px-3 py-3 text-center">휴무일이에요. 예약이 필요하면 ‘직접 입력’을 이용하세요.</p>
-        ) : (
-          <div className={`grid grid-cols-4 gap-1.5 ${blocks ? '' : 'opacity-50'}`}>
-            {slots.map(t => {
-              const sel = t === time
-              const free = ok(t)
-              const past = date === today && t < nowTime
-              const closedT = free && inClosed(t)
-              return (
-                <button key={t} type="button" onClick={() => free && onChange(date, t)} disabled={!free}
-                  className={`${slotCls} ${sel ? 'bg-brand-500 border-brand-500 text-white font-700'
-                    : !free ? 'border-dashed border-gray-200 bg-gray-50 text-gray-300'
-                    : closedT ? 'border-slate-300 bg-slate-100 text-slate-500'
-                    : past ? 'border-gray-100 text-gray-400 hover:bg-brand-50'
-                    : 'border-brand-100 text-gray-700 hover:bg-brand-50'}`}>
-                  {t}
-                  {!free && <span className="block text-[9px] leading-none">마감</span>}
-                  {closedT && <span className="block text-[9px] leading-none">휴무시간</span>}
-                </button>
-              )
-            })}
+        {showOther && (
+          <div className="mt-2 rounded-xl border border-brand-100 bg-brand-50/50 p-2.5">
+            <p className="text-[11px] font-600 text-brand-600 mb-1.5">다른 시간 (영업시간 외도 가능)</p>
+            <div className="flex items-center gap-1.5">
+              <div className="flex rounded-lg border border-brand-200 overflow-hidden shrink-0">
+                {(['am', 'pm'] as const).map(a => (
+                  <button key={a} type="button" onClick={() => setOther({ ...other, ampm: a })}
+                    className={`px-3 py-2 text-sm font-600 ${other.ampm === a ? 'bg-brand-500 text-white' : 'bg-white text-brand-600'}`}>
+                    {a === 'am' ? '오전' : '오후'}
+                  </button>
+                ))}
+              </div>
+              <select value={other.hour} onChange={e => setOther({ ...other, hour: Number(e.target.value) })}
+                className="flex-1 min-w-0 text-sm rounded-lg border border-brand-200 bg-white px-2 py-2 outline-none">
+                {[12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map(h => <option key={h} value={h}>{h}시</option>)}
+              </select>
+              <select value={other.minute} onChange={e => setOther({ ...other, minute: Number(e.target.value) })}
+                className="flex-1 min-w-0 text-sm rounded-lg border border-brand-200 bg-white px-2 py-2 outline-none">
+                {MINUTES.map(m => <option key={m} value={m}>{String(m).padStart(2, '0')}분</option>)}
+              </select>
+            </div>
           </div>
         )}
         {time && (
           <p className={`mt-2 text-xs rounded-lg px-3 py-2 ${conflict ? 'bg-red-50 text-red-500' : closedConflict ? 'bg-slate-100 text-slate-600' : 'bg-brand-50 text-brand-600'}`}>
             {conflict ? '⚠ 다른 예약과 겹쳐요. ' : closedConflict ? '⚠ 휴무시간과 겹쳐요(저장 시 확인). ' : '→ '}
             {time} ~ {timeOf(minutesOf(time) + durationMin)} (정리 {timeOf(minutesOf(time) + durationMin + BUFFER_MIN)}까지)
-            {!isSlot && !conflict && ' · 직접 입력한 시간'}
+            {!isSlot && !conflict && (outsideHours(date, time) ? ' · 영업시간 외' : ' · 직접 입력')}
           </p>
         )}
       </div>
