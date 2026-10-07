@@ -7,6 +7,8 @@ import PaymentSheet from './PaymentSheet'
 import ReservationForm, { EMPTY_FORM, saveReservation, type Product, type PaymentMethod } from './ReservationForm'
 import { effectivePrice } from '@/lib/booking/pricing'
 import { confirmText, remindText, smsBytes, smsStatus, SMS_MAX_BYTES } from '@/lib/booking/sms-templates'
+import { mergeRanges } from '@/lib/booking/closed-slots'
+import ClosedTimeSheet from './ClosedTimeSheet'
 
 interface Reservation {
   id: number
@@ -359,11 +361,13 @@ export default function ReservationsClient({ initialReservations, initialDate, o
 
   const loadDay = useCallback(async (date: string) => {
     setLoadingDay(true)
-    const [data] = await Promise.all([
+    const [data, closedSlots] = await Promise.all([
       fetch(`/api/reservations?${kstRange(date, date)}`).then(r => r.json()),
+      fetch(`/api/closed-slots?date=${date}`).then(r => r.ok ? r.json() : { times: [] }),
       loadClosed(date, date),
     ])
     setReservations(Array.isArray(data) ? data : [])
+    setClosedTimes(closedSlots?.times ?? [])
     setLoadingDay(false)
   }, [loadClosed])
 
@@ -387,6 +391,16 @@ export default function ReservationsClient({ initialReservations, initialDate, o
   }
 
   const closedToday = closedDates.find(c => c.date === currentDate)
+  const [closedTimes, setClosedTimes] = useState<string[]>([])
+  const [showClosedSheet, setShowClosedSheet] = useState(false)
+
+  /* 휴무시간 구간 해제 — 그 구간의 30분 칸을 빼고 저장 */
+  const removeClosedRange = async (range: { start: string; end: string }) => {
+    if (!confirm(`${range.start} ~ ${range.end} 휴무시간을 해제할까요?`)) return
+    const next = closedTimes.filter(t => t < range.start || t >= range.end)
+    const res = await fetch('/api/closed-slots', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ date: currentDate, times: next }) })
+    if (res.ok) setClosedTimes((await res.json()).times)
+  }
   const toggleClosed = async () => {
     if (closedToday) {
       if (!confirm(`${currentDate} 휴무를 해제할까요?`)) return
@@ -511,15 +525,22 @@ export default function ReservationsClient({ initialReservations, initialDate, o
             {closedToday
               ? <p className="text-xs font-700 text-red-400">휴무일{closedToday.reason ? ` · ${closedToday.reason}` : ''} (외부 예약 차단)</p>
               : <span />}
-            <button onClick={toggleClosed} className="text-[11px] font-600 px-3 py-1 rounded-full border border-brand-200 text-brand-500">
-              {closedToday ? '휴무 해제' : '휴무 지정'}
-            </button>
+            <div className="flex gap-1.5">
+              {!closedToday && (
+                <button onClick={() => setShowClosedSheet(true)} className="text-[11px] font-600 px-3 py-1 rounded-full border border-slate-300 bg-slate-50 text-slate-600">
+                  휴무 시간
+                </button>
+              )}
+              <button onClick={toggleClosed} className="text-[11px] font-600 px-3 py-1 rounded-full border border-brand-200 text-brand-500">
+                {closedToday ? '휴무 해제' : '휴무 지정'}
+              </button>
+            </div>
           </div>
         )}
         {view === 'day' ? (
           loadingDay ? (
             <p className="text-sm text-gray-400 text-center py-10">불러오는 중...</p>
-          ) : reservations.length === 0 ? (
+          ) : reservations.length === 0 && closedTimes.length === 0 ? (
             <div className="text-center py-14">
               <img src="/onflow-logo.png" alt="" className="w-20 h-20 object-contain mx-auto mb-4 opacity-40" />
               <p className="font-serif text-base font-bold text-brand-600">예약이 없습니다</p>
@@ -527,7 +548,22 @@ export default function ReservationsClient({ initialReservations, initialDate, o
             </div>
           ) : (
             <div className="space-y-3">
-              {reservations.map(r => (
+              {[
+                ...reservations.map(r => ({ at: fmtTime(r.start_at), r, closed: null as null | { start: string; end: string } })),
+                ...mergeRanges(closedTimes).map(c => ({ at: c.start, r: null as Reservation | null, closed: c })),
+              ].sort((a, b) => a.at.localeCompare(b.at)).map(item => item.closed ? (
+                // 관리자 휴무시간 (고객에게는 마감으로 보임)
+                <div key={`closed-${item.closed.start}`} className="flex items-center justify-between rounded-2xl border border-dashed border-slate-300 px-4 py-3 bg-[repeating-linear-gradient(135deg,#f8fafc_0,#f8fafc_8px,#f1f5f9_8px,#f1f5f9_16px)]">
+                  <div>
+                    <p className="text-sm font-700 text-slate-600">휴무시간</p>
+                    <p className="text-[11px] text-slate-400">고객 화면에는 ‘마감’으로 보여요</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <p className="font-serif text-base font-extrabold text-slate-600">{item.closed.start} ~ {item.closed.end}</p>
+                    <button onClick={() => removeClosedRange(item.closed!)} className="text-[11px] font-600 px-2 py-1 rounded-lg border border-slate-300 text-slate-500 bg-white">해제</button>
+                  </div>
+                </div>
+              ) : (() => { const r = item.r!; return (
                 <button key={r.id} onClick={() => openDetail(r)} className="w-full text-left bg-white/85 rounded-2xl border border-l-4 p-4 shadow-sm" style={{ borderColor: STATUS_COLOR[r.status] + '40', borderLeftColor: STATUS_COLOR[r.status] }}>
                   <div className="flex items-start justify-between">
                     <div className="min-w-0 flex-1">
@@ -551,7 +587,7 @@ export default function ReservationsClient({ initialReservations, initialDate, o
                     </div>
                   </div>
                 </button>
-              ))}
+              ) })())}
             </div>
           )
         ) : loadingMonth ? (
@@ -569,6 +605,9 @@ export default function ReservationsClient({ initialReservations, initialDate, o
         <ReservationForm initial={editInitial} products={formProducts} date={currentDate} onSave={handleSave} onCancel={() => { setShowForm(false); setEditTarget(null) }} editId={editTarget?.id} completed={editTarget?.status === 'completed'} />
       )}
 
+      {showClosedSheet && (
+        <ClosedTimeSheet date={currentDate} onClose={() => setShowClosedSheet(false)} onSaved={times => { setClosedTimes(times); setShowClosedSheet(false) }} />
+      )}
       {payTarget && (
         <PaymentSheet reservation={{ ...payTarget, price: effectivePrice(payTarget).price }} onCancel={() => setPayTarget(null)} onDone={() => {
           setPayTarget(null)

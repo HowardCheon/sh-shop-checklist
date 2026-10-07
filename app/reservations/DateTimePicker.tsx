@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { fits, type Block } from '@/lib/booking/availability'
+import { closedBlocks } from '@/lib/booking/closed-slots'
 import { BUFFER_MIN, candidateTimes } from '@/lib/booking/rules'
 import { addDays, kstNow, minutesOf, timeOf } from '@/lib/booking/time'
 
@@ -26,6 +27,8 @@ export default function DateTimePicker({ date, time, durationMin, excludeId, onC
 }) {
   const today = kstNow().date
   const [blocks, setBlocks] = useState<Block[] | null>(null)
+  // 관리자 휴무시간 블록 — 선택은 가능하지만 '휴무시간'으로 표시
+  const [closedB, setClosedB] = useState<Block[]>([])
   const [manual, setManual] = useState(() => !!time && !!date && !candidateTimes(date).includes(time))
   const calRef = useRef<HTMLInputElement>(null)
   const stripRef = useRef<HTMLDivElement>(null)
@@ -44,6 +47,9 @@ export default function DateTimePicker({ date, time, durationMin, excludeId, onC
       if (!alive || !Array.isArray(list)) return
       setBlocks(list.filter(r => r.status !== 'cancelled').map(r => ({ id: r.id, start: r.start_at, blockEnd: r.block_end_at })))
     })
+    fetch(`/api/closed-slots?date=${date}`).then(r => r.ok ? r.json() : { times: [] }).then(c => {
+      if (alive) setClosedB(closedBlocks(date, c?.times ?? []))
+    })
     return () => { alive = false }
   }, [date])
 
@@ -56,6 +62,8 @@ export default function DateTimePicker({ date, time, durationMin, excludeId, onC
   const isSlot = slots.includes(time)
   const ok = (t: string) => !blocks || fits(date, t, durationMin, blocks, excludeId)
   const conflict = !!time && !!blocks && !fits(date, time, durationMin, blocks, excludeId)
+  const inClosed = (t: string) => !fits(date, t, durationMin, closedB)
+  const closedConflict = !!time && !conflict && inClosed(time)
   const nowTime = kstNow().time
 
   const chip = 'shrink-0 w-14 py-2 rounded-2xl border text-center transition-colors'
@@ -112,22 +120,25 @@ export default function DateTimePicker({ date, time, durationMin, excludeId, onC
               const sel = t === time
               const free = ok(t)
               const past = date === today && t < nowTime
+              const closedT = free && inClosed(t)
               return (
                 <button key={t} type="button" onClick={() => free && onChange(date, t)} disabled={!free}
                   className={`${slotCls} ${sel ? 'bg-brand-500 border-brand-500 text-white font-700'
                     : !free ? 'border-dashed border-gray-200 bg-gray-50 text-gray-300'
+                    : closedT ? 'border-slate-300 bg-slate-100 text-slate-500'
                     : past ? 'border-gray-100 text-gray-400 hover:bg-brand-50'
                     : 'border-brand-100 text-gray-700 hover:bg-brand-50'}`}>
                   {t}
                   {!free && <span className="block text-[9px] leading-none">마감</span>}
+                  {closedT && <span className="block text-[9px] leading-none">휴무시간</span>}
                 </button>
               )
             })}
           </div>
         )}
         {time && (
-          <p className={`mt-2 text-xs rounded-lg px-3 py-2 ${conflict ? 'bg-red-50 text-red-500' : 'bg-brand-50 text-brand-600'}`}>
-            {conflict ? '⚠ 다른 예약과 겹쳐요. ' : '→ '}
+          <p className={`mt-2 text-xs rounded-lg px-3 py-2 ${conflict ? 'bg-red-50 text-red-500' : closedConflict ? 'bg-slate-100 text-slate-600' : 'bg-brand-50 text-brand-600'}`}>
+            {conflict ? '⚠ 다른 예약과 겹쳐요. ' : closedConflict ? '⚠ 휴무시간과 겹쳐요(저장 시 확인). ' : '→ '}
             {time} ~ {timeOf(minutesOf(time) + durationMin)} (정리 {timeOf(minutesOf(time) + durationMin + BUFFER_MIN)}까지)
             {!isSlot && !conflict && ' · 직접 입력한 시간'}
           </p>

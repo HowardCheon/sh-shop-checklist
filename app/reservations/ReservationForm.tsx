@@ -221,10 +221,17 @@ export async function saveReservation({ form, products, editId, paymentMethod }:
     memo: form.memo || null,
     ...(paymentMethod ? { payment_method: paymentMethod } : {}),
   }
-  const res = await fetch(editId ? `/api/reservations/${editId}` : '/api/reservations', {
-    method: editId ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+  const post = (body: object) => fetch(editId ? `/api/reservations/${editId}` : '/api/reservations', {
+    method: editId ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
   })
-  const data = await res.json().catch(() => ({}))
+  let res = await post(payload)
+  let data = await res.json().catch(() => ({}))
+  // 관리자 휴무시간과 겹치면 확인 후 그대로 저장
+  if (res.status === 409 && data.closed_slot) {
+    if (!confirm(`휴무시간(${data.closed_slot.start}~${data.closed_slot.end})과 겹칩니다. 그래도 저장할까요?`)) return '휴무시간과 겹쳐 저장하지 않았어요'
+    res = await post({ ...payload, allow_closed: true })
+    data = await res.json().catch(() => ({}))
+  }
   if (!res.ok) {
     if (data.conflict) {
       const c = data.conflict
