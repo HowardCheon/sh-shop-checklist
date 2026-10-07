@@ -331,8 +331,10 @@ function MonthCalendar({ year, month, reservations, closedDates, onDayClick }: {
 }
 
 /* ── 메인 클라이언트 ── */
-export default function ReservationsClient({ initialReservations, initialDate, openId, products }: {
+export default function ReservationsClient({ initialReservations, initialDate, openId, products, initialClosedDates = [], initialClosedTimes = [] }: {
   initialReservations: Reservation[]
+  initialClosedDates?: ClosedDate[]
+  initialClosedTimes?: string[]
   initialDate: string
   openId?: number
   products: Product[]
@@ -351,7 +353,7 @@ export default function ReservationsClient({ initialReservations, initialDate, o
   const [showForm, setShowForm] = useState(false)
   const [editTarget, setEditTarget] = useState<Reservation | null>(null)
   const [detailTarget, setDetailTarget] = useState<Reservation | null>(null)
-  const [closedDates, setClosedDates] = useState<ClosedDate[]>([])
+  const [closedDates, setClosedDates] = useState<ClosedDate[]>(initialClosedDates)
   const [payTarget, setPayTarget] = useState<Reservation | null>(null)
 
   const loadClosed = useCallback(async (from: string, to: string) => {
@@ -391,7 +393,7 @@ export default function ReservationsClient({ initialReservations, initialDate, o
   }
 
   const closedToday = closedDates.find(c => c.date === currentDate)
-  const [closedTimes, setClosedTimes] = useState<string[]>([])
+  const [closedTimes, setClosedTimes] = useState<string[]>(initialClosedTimes)
   const [showClosedSheet, setShowClosedSheet] = useState(false)
 
   /* 휴무시간 구간 해제 — 그 구간의 30분 칸을 빼고 저장 */
@@ -563,24 +565,28 @@ export default function ReservationsClient({ initialReservations, initialDate, o
                     <button onClick={() => removeClosedRange(item.closed!)} className="text-[11px] font-600 px-2 py-1 rounded-lg border border-slate-300 text-slate-500 bg-white">해제</button>
                   </div>
                 </div>
-              ) : (() => { const r = item.r!; return (
-                <button key={r.id} onClick={() => openDetail(r)} className="w-full text-left bg-white/85 rounded-2xl border border-l-4 p-4 shadow-sm" style={{ borderColor: STATUS_COLOR[r.status] + '40', borderLeftColor: STATUS_COLOR[r.status] }}>
+              ) : (() => { const r = item.r!; const off = r.status === 'cancelled'; return (
+                <button key={r.id} onClick={() => openDetail(r)}
+                  className={`w-full text-left rounded-2xl border p-4 ${off ? 'bg-gray-100/80 border-dashed border-gray-300 opacity-75' : 'bg-white/85 border-l-4 shadow-sm'}`}
+                  style={off ? undefined : { borderColor: STATUS_COLOR[r.status] + '40', borderLeftColor: STATUS_COLOR[r.status] }}>
                   <div className="flex items-start justify-between">
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
-                        <span className="text-sm font-700 text-gray-800 whitespace-nowrap">{r.customer_name}</span>
-                        <span className="text-[10px] font-700 px-2 py-0.5 rounded-full whitespace-nowrap" style={{ background: STATUS_BG[r.status], color: STATUS_COLOR[r.status] }}>{STATUS_LABEL[r.status]}</span>
-                        <MemberBadge r={r} />
-                        <TrialBadge r={r} />
+                        <span className={`text-sm font-700 whitespace-nowrap ${off ? 'text-gray-400 line-through' : 'text-gray-800'}`}>{r.customer_name}</span>
+                        {off
+                          ? <span className="text-[11px] font-800 px-2.5 py-0.5 rounded-full whitespace-nowrap bg-gray-500 text-white">✕ 취소된 예약</span>
+                          : <span className="text-[10px] font-700 px-2 py-0.5 rounded-full whitespace-nowrap" style={{ background: STATUS_BG[r.status], color: STATUS_COLOR[r.status] }}>{STATUS_LABEL[r.status]}</span>}
+                        {!off && <MemberBadge r={r} />}
+                        {!off && <TrialBadge r={r} />}
                         <SmsBadges r={r} />
                         {r.source === 'external' && <span className="text-[10px] font-700 px-2 py-0.5 rounded-full bg-sky-50 text-sky-600 whitespace-nowrap">외부예약</span>}
                       </div>
-                      {r.product_name && <p className="text-xs text-gray-500 mt-0.5">{r.product_name}</p>}
+                      {r.product_name && <p className={`text-xs mt-0.5 ${off ? 'text-gray-400 line-through' : 'text-gray-500'}`}>{r.product_name}</p>}
                       {(() => { const c = effectivePrice(r).changed; return c && <p className="mt-1"><ChangeLabel changed={c} /></p> })()}
                       {r.customer_message && <p className="text-xs text-sky-500 mt-0.5 truncate">💬 {r.customer_message}</p>}
                       {r.memo && <p className="text-xs text-gray-400 mt-0.5 truncate">{r.memo}</p>}
                     </div>
-                    <div className="text-right shrink-0 ml-2">
+                    <div className={`text-right shrink-0 ml-2 ${off ? 'line-through' : ''}`}>
                       <p className="font-serif text-base font-extrabold" style={{ color: STATUS_COLOR[r.status] }}>{fmtTime(r.start_at)}</p>
                       <p className="text-xs text-gray-400">~ {fmtTime(r.end_at)}</p>
                       {r.price != null && <p className="text-xs text-gray-500 mt-0.5"><PriceChange r={r} hideLabel /></p>}
