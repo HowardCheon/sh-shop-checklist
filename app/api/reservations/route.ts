@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
-import { blockTimes, findConflict, linkCustomer, recordCustomerHistory } from '@/lib/booking/admin'
+import { blockTimes, findClosedOverlap, findConflict, linkCustomer, recordCustomerHistory } from '@/lib/booking/admin'
 import { withTrial } from '@/lib/trial'
 
 /* 시작/종료 기준으로 날짜 범위 조회 */
@@ -35,6 +35,11 @@ export async function POST(req: NextRequest) {
   // 겹침 확인 (시술 + 정리시간 20분 블록)
   const conflict = await findConflict(times.start_at, times.block_end_at)
   if (conflict) return NextResponse.json({ error: '예약 시간 충돌', conflict }, { status: 409 })
+  // 관리자 휴무시간과 겹치면 확인 요청 (확인 후 allow_closed 로 다시 저장)
+  if (!body.allow_closed) {
+    const closed = await findClosedOverlap(times.start_at, times.block_end_at)
+    if (closed) return NextResponse.json({ error: `휴무시간(${closed.start}~${closed.end})과 겹칩니다`, closed_slot: closed }, { status: 409 })
+  }
 
   const name = customer_name.trim()
   const { phone, customerId } = await linkCustomer(name, customer_phone, customer_id)

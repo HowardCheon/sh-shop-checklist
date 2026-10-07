@@ -2,7 +2,9 @@
 import { supabase } from '@/lib/supabase'
 import { BookingError } from './errors'
 import { normalizePhone } from './phone'
-import { findOrCreateCustomer } from './repo'
+import { findOrCreateCustomer, listClosedTimes } from './repo'
+import { overlapsClosed } from './closed-slots'
+import { isoToKst } from './time'
 import { BUFFER_MIN } from './rules'
 
 export function blockTimes(startAt: string, durationMin: number) {
@@ -12,6 +14,12 @@ export function blockTimes(startAt: string, durationMin: number) {
     end_at: new Date(start + durationMin * 60000).toISOString(),
     block_end_at: new Date(start + (durationMin + BUFFER_MIN) * 60000).toISOString(),
   }
+}
+
+/** 새 블록과 겹치는 관리자 휴무시간 구간 (없으면 null) */
+export async function findClosedOverlap(startAt: string, blockEndAt: string) {
+  const date = isoToKst(startAt).date
+  return overlapsClosed(date, await listClosedTimes(date), startAt, blockEndAt)
 }
 
 /** 새 블록과 겹치는 기존 예약 (정리시간 포함) */

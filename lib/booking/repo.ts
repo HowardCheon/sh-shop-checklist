@@ -1,6 +1,7 @@
 /* 예약 관련 Supabase 접근 */
 import { supabase } from '@/lib/supabase'
 import type { Block } from './availability'
+import { closedBlocks } from './closed-slots'
 import { BookingError } from './errors'
 import { addDays, kstToIso } from './time'
 
@@ -72,8 +73,19 @@ export async function getClosedDate(date: string): Promise<{ date: string; reaso
   return data
 }
 
-/** 해당 KST 날짜와 겹치는 활성 예약 블록 */
+/** 관리자 휴무시간 (30분 칸 시작 시각) */
+export async function listClosedTimes(date: string): Promise<string[]> {
+  const { data, error } = await supabase.from('sh_shop_closed_slots').select('time').eq('date', date).order('time')
+  if (error) fail('휴무시간 조회 실패', error)
+  return (data ?? []).map(r => r.time)
+}
+
+/** 해당 KST 날짜와 겹치는 활성 예약 블록 + 관리자 휴무시간 블록(고객에게는 마감으로 보임) */
 export async function listBlocks(date: string): Promise<Block[]> {
+  return [...(await listReservationBlocks(date)), ...closedBlocks(date, await listClosedTimes(date))]
+}
+
+async function listReservationBlocks(date: string): Promise<Block[]> {
   const { data, error } = await supabase
     .from('sh_shop_reservations')
     .select('id, start_at, block_end_at')

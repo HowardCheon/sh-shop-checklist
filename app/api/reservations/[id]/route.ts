@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
-import { blockTimes, findConflict, linkCustomer, recordCustomerHistory } from '@/lib/booking/admin'
+import { blockTimes, findClosedOverlap, findConflict, linkCustomer, recordCustomerHistory } from '@/lib/booking/admin'
 import { voidReservationPayments, adjustPayment, paymentErrorResponse, type PaymentMethod } from '@/lib/payments'
 import { cancelReservationTrialUses, withTrial } from '@/lib/trial'
 
@@ -45,6 +45,10 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const times = blockTimes(nextStart, nextMins)
     const conflict = await findConflict(times.start_at, times.block_end_at, Number(id))
     if (conflict) return NextResponse.json({ error: '예약 시간 충돌', conflict }, { status: 409 })
+    if (!body.allow_closed) {
+      const closed = await findClosedOverlap(times.start_at, times.block_end_at)
+      if (closed) return NextResponse.json({ error: `휴무시간(${closed.start}~${closed.end})과 겹칩니다`, closed_slot: closed }, { status: 409 })
+    }
     if (timeChanged) {
       Object.assign(updates, times, { duration_min: nextMins })
       changes.push(`시간 변경: ${existing.start_at} → ${times.start_at}`)
