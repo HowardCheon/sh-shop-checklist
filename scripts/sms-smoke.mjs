@@ -19,7 +19,7 @@ try {
 
   r = await call('POST', `/api/reservations/${id}/sms`, { type: 'remind' })
   x = await row(id)
-  check('전일 안내 발송 → 문구·기록', r.status === 200 && r.body.text.includes('내일 오후5시30분에 찾아뵐게요') && x.remind_sms_at, [r, x])
+  check('전일 안내 발송 → 문구·기록', r.status === 200 && r.body.text.includes('내일 오후5시30분에 뵙겠습니다') && x.remind_sms_at, [r, x])
 
   // 시간 변경 → 발송 기준 시간과 달라짐 → 다시 보내면 갱신
   r = await call('PUT', `/api/reservations/${id}`, { start_at: `${day}T18:00:00+09:00`, duration_min: 60 })

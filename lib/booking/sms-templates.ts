@@ -18,10 +18,10 @@ export function confirmText(name: string, startIso: string) {
   return `[온:플로우]\n${name}님, ${p.m}/${p.d}(${p.weekday}) ${p.ampm}${p.h12}:${String(p.mm).padStart(2, '0')} 예약확정되었습니다. 감사합니다.`
 }
 
-/** 전일 안내: [온:플로우]\n곽지현 고객님 안녕하세요 ^^ 내일 오전10시에 찾아뵐게요 ♡ */
+/** 전일 안내: [온:플로우]\n곽지현 고객님 안녕하세요 ^^ 내일 오전10시에 뵙겠습니다 ♡ */
 export function remindText(name: string, startIso: string) {
   const p = parts(startIso)
-  return `[온:플로우]\n${name} 고객님 안녕하세요 ^^ 내일 ${p.ampm}${p.h12}시${p.mm ? `${p.mm}분` : ''}에 찾아뵐게요 ♡`
+  return `[온:플로우]\n${name} 고객님 안녕하세요 ^^ 내일 ${p.ampm}${p.h12}시${p.mm ? `${p.mm}분` : ''}에 뵙겠습니다 ♡`
 }
 
 /** 단문 바이트 수 (EUC-KR 기준 — 한글·기호 2, 영문·숫자 1) */
