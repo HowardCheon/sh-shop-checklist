@@ -24,8 +24,14 @@ export function accessReportMessage(r: { label: string; ga: DailyReport | { erro
     lines.push(`⚠ 방문 통계 조회 실패: ${escape(r.ga.error)}`)
   } else {
     const g = r.ga
-    lines.push(`방문자 ${g.users.toLocaleString('ko-KR')}명 · 페이지뷰 ${g.views.toLocaleString('ko-KR')}회${g.users ? ` (모바일 ${g.mobileShare}%)` : ''}`)
-    if (g.sources.length) lines.push(`유입: ${joinRanked(g.sources)}`)
+    const split = g.internal ? ` (내부 ${g.internal} · 손님 ${g.users - g.internal})` : ''
+    lines.push(`방문자 ${g.users.toLocaleString('ko-KR')}명${split} · 페이지뷰 ${g.views.toLocaleString('ko-KR')}회${g.users ? ` (모바일 ${g.mobileShare}%)` : ''}`)
+    if (g.guestsNew + g.guestsReturning > 0) lines.push(`${g.internal ? '손님' : '방문'}: 신규 ${g.guestsNew} · 재방문 ${g.guestsReturning}`)
+    if (g.channels.length) {
+      const parts = (c: DailyReport['channels'][number]) => (c.parts.length ? `(${c.parts.map(p => `${escape(p.label)} ${p.count}`).join('·')})` : '')
+      lines.push(`유입: ${g.channels.map(c => `${escape(c.label)} ${c.count}${parts(c)}`).join(' · ')}`)
+    }
+    if (g.cities.length) lines.push(`지역: ${joinRanked(g.cities)}`)
     if (g.pages.length) lines.push(`많이 본 페이지: ${joinRanked(g.pages)}`)
   }
   if ('error' in r.bookings) lines.push(`⚠ 온라인 예약 집계 실패: ${escape(r.bookings.error)}`)
