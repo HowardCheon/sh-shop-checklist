@@ -177,18 +177,82 @@ function SmsPanel({ res, onSent }: { res: Reservation; onSent: (updated: Partial
   )
 }
 
+/* 예약 상세 — 고객과 연결되지 않은 예약을 바로 고객으로 등록 (같은 이름이 있으면 고르기) */
+function RegisterCustomer({ res, onPatched }: { res: Reservation; onPatched: (updated: Partial<Reservation>) => void }) {
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+  const [msg, setMsg] = useState('')
+  const [same, setSame] = useState<{ id: number; name: string; phone: string | null; visits: number }[] | null>(null)
+
+  const submit = async (body: object) => {
+    setBusy(true); setErr('')
+    try {
+      const r = await fetch(`/api/reservations/${res.id}/register-customer`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      const data = await r.json().catch(() => ({}))
+      if (r.status === 409 && data.same_name) { setSame(data.same_name); return }
+      if (!r.ok) { setErr(data.error ?? '등록 실패'); return }
+      setSame(null)
+      setMsg(data.created ? `${data.customer.name}님을 고객으로 등록했어요` : `기존 고객 ${data.customer.name}님과 연결했어요`)
+      // 연결된 고객의 회원 여부·첫체험까지 반영되도록 예약을 다시 불러옴
+      const full = await fetch(`/api/reservations/${res.id}`).then(x => (x.ok ? x.json() : null)).catch(() => null)
+      onPatched(full ?? data.reservation)
+    } catch {
+      setErr('네트워크 오류입니다. 다시 시도하세요')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (msg) return <p className="text-xs text-emerald-600 bg-emerald-50 rounded-xl px-3 py-2 mb-4">✓ {msg}</p>
+  return (
+    <div className="rounded-xl border border-dashed border-brand-200 bg-brand-50/40 p-3 mb-4 space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs text-gray-600">등록된 고객이 아니에요</p>
+        {!same && (
+          <button onClick={() => submit({})} disabled={busy} className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-700 text-white disabled:opacity-40" style={{ background: '#bc7659' }}>
+            {busy ? '등록 중...' : '고객 등록'}
+          </button>
+        )}
+      </div>
+      {err && <p className="text-xs text-red-500">{err}</p>}
+      {same && (
+        <div className="space-y-1.5">
+          <p className="text-[11px] font-600 text-brand-700">같은 이름의 고객이 있어요. 같은 분이면 연결하세요.</p>
+          {same.map(c => (
+            <div key={c.id} className="flex items-center gap-2 bg-white rounded-lg border border-brand-100 px-2.5 py-1.5">
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-600 text-gray-800">{c.name} <span className="font-400 text-gray-400">{c.phone ? fmtPhone(c.phone) : '번호 없음'}</span></p>
+                <p className="text-[10px] text-gray-400">방문 {c.visits}회</p>
+              </div>
+              <button onClick={() => submit({ link_customer_id: c.id })} disabled={busy} className="shrink-0 px-2.5 py-1 rounded-lg text-[11px] font-700 text-brand-600 border border-brand-200 bg-white disabled:opacity-40">이 고객과 연결</button>
+            </div>
+          ))}
+          <div className="flex gap-1.5">
+            <button onClick={() => setSame(null)} disabled={busy} className="flex-1 py-1.5 rounded-lg text-[11px] font-600 text-gray-500 bg-gray-100">취소</button>
+            <button onClick={() => submit({ force_new: true })} disabled={busy} className="flex-1 py-1.5 rounded-lg text-[11px] font-700 text-white disabled:opacity-40" style={{ background: '#bc7659' }}>새 고객으로 등록</button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+const fmtPhone = (p: string) => (p.length === 11 ? `${p.slice(0, 3)}-${p.slice(3, 7)}-${p.slice(7)}` : p)
+
 const STATUS_LABEL = { scheduled: '예약', completed: '완료', cancelled: '취소' } as const
 const STATUS_COLOR = { scheduled: '#bc7659', completed: '#7c9a7e', cancelled: '#9ca3af' } as const
 const STATUS_BG    = { scheduled: '#faf4f0', completed: '#f0f4ef', cancelled: '#f9fafb' } as const
 
 /* ── 예약 상세 ── */
-function ReservationDetail({ res, onClose, onStatusChange, onEdit, onComplete, onSmsSent }: {
+function ReservationDetail({ res, onClose, onStatusChange, onEdit, onComplete, onPatched }: {
   res: Reservation; onClose: () => void
   onStatusChange: (id: number, status: string) => Promise<void>
   onEdit: (r: Reservation) => void
   onComplete: (r: Reservation) => void
-  onSmsSent: (updated: Partial<Reservation>) => void
+  onPatched: (updated: Partial<Reservation>) => void
 }) {
+  // 열 때 미연결이었으면 등록 후에도 완료 안내가 보이도록 유지
+  const [showRegister] = useState(!res.customer_id)
   const [changing, setChanging] = useState<string | null>(null)
 
   const change = async (status: string) => {
@@ -229,7 +293,8 @@ function ReservationDetail({ res, onClose, onStatusChange, onEdit, onComplete, o
           {res.customer_message && <Row label="고객 요청" value={res.customer_message} />}
           {res.memo && <Row label="내부 메모" value={res.memo} />}
         </div>
-        {res.status === 'scheduled' && <SmsPanel res={res} onSent={onSmsSent} />}
+        {showRegister && res.status !== 'cancelled' && <RegisterCustomer res={res} onPatched={onPatched} />}
+        {res.status === 'scheduled' && <SmsPanel res={res} onSent={onPatched} />}
         {res.status === 'scheduled' && (
           <div className="flex gap-2 mb-4">
             <button onClick={() => { onClose(); onComplete(res) }} disabled={!!changing} className="flex-1 py-2.5 rounded-xl text-sm font-700 text-white" style={{ background: '#7c9a7e' }}>
@@ -623,7 +688,7 @@ export default function ReservationsClient({ initialReservations, initialDate, o
       )}
 
       {detailTarget && (
-        <ReservationDetail res={detailTarget} onClose={() => setDetailTarget(null)} onStatusChange={handleStatusChange} onEdit={(r) => { setDetailTarget(null); setEditTarget(r); setShowForm(true) }} onComplete={setPayTarget} onSmsSent={updated => {
+        <ReservationDetail res={detailTarget} onClose={() => setDetailTarget(null)} onStatusChange={handleStatusChange} onEdit={(r) => { setDetailTarget(null); setEditTarget(r); setShowForm(true) }} onComplete={setPayTarget} onPatched={updated => {
           setDetailTarget(d => d ? { ...d, ...updated } : d)
           setReservations(list => list.map(r => r.id === updated.id ? { ...r, ...updated } : r))
         }} />
