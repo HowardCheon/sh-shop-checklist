@@ -11,6 +11,7 @@ export type SmsLog = {
   status: 'sent' | 'failed'
   reason: string | null
   created_at: string
+  reservation?: { start_at: string } | null
 }
 
 /** 기록 실패가 발송 결과에 영향을 주지 않도록 오류는 로그만 */
@@ -24,7 +25,7 @@ export async function recordSmsLog(r: { kind: 'confirm' | 'remind'; reservationI
 
 /** 최근 발송 기록 (최신순, created_at 역순 인덱스 사용) */
 export async function listSmsLogs(limit = 100): Promise<SmsLog[]> {
-  const { data, error } = await supabase.from('sh_shop_sms_logs').select('*').order('created_at', { ascending: false }).limit(limit)
+  const { data, error } = await supabase.from('sh_shop_sms_logs').select('*, reservation:sh_shop_reservations(start_at)').order('created_at', { ascending: false }).limit(limit)
   if (error) throw error
   return (data ?? []) as SmsLog[]
 }
