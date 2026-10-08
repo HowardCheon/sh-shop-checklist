@@ -31,7 +31,13 @@ try {
 
   // 발송 기록 (성공)
   let logs = await sql(`select kind, status, phone, text, reason from sh_shop_sms_logs where reservation_id = ${id} order by created_at`)
-  check('발송 기록 3건 모두 성공으로 남음', logs.length === 3 && logs.every(l => l.status === 'sent') && logs[0].kind === 'confirm' && logs[1].kind === 'remind' && logs[0].text.includes('예약확정'), logs)
+  check('발송 기록 3건 모두 성공으로 남음', logs.filter(l => l.kind !== 'location').length === 3 && logs.every(l => l.status === 'sent') && logs[0].kind === 'confirm' && logs[1].kind === 'remind' && logs[0].text.includes('예약확정'), logs)
+
+  // 위치 안내 (예약 시간과 무관)
+  r = await call('POST', `/api/reservations/${id}/sms`, { type: 'location' })
+  const loc = await sql(`select location_sms_at from sh_shop_reservations where id = ${id}`)
+  const locLog = await sql(`select kind, status, text from sh_shop_sms_logs where reservation_id = ${id} and kind = 'location'`)
+  check('위치 안내 발송 → 주소·지도 링크, 발송 시각·기록', r.status === 200 && r.body.text.includes('미사대로520') && r.body.text.includes('naver.me') && loc[0]?.location_sms_at && locLog.length === 1 && locLog[0].status === 'sent', [r, loc, locLog])
 
   // 발송 실패도 기록 (개발용 가짜 실패 번호)
   r = await call('POST', '/api/reservations', { customer_name: '실패테스트', customer_phone: '010-9999-0092', product_id: 2, product_name: '베이직 피부관리', duration_min: 60, start_at: `${day}T13:00:00+09:00`, price: 80000 })
@@ -52,7 +58,7 @@ try {
   check('인증번호 문자는 기록 안 됨', after === before, [before, after])
 
   const hist = await sql(`select count(*)::int n from sh_shop_reservation_history where reservation_id = ${id} and description like '%문자 발송%'`)
-  check('예약 이력에 발송 기록', hist[0]?.n === 3, hist)
+  check('예약 이력에 발송 기록 (확정·안내·확정 재발송·위치)', hist[0]?.n === 4, hist)
 
   r = await call('POST', `/api/reservations/${id}/sms`, { type: 'hello' })
   check('잘못된 종류 → 400', r.status === 400, r)

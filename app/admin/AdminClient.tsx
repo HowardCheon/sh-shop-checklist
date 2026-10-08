@@ -6,7 +6,7 @@ import BrandHeader, { PageTitle } from '@/components/BrandHeader'
 import { isoToKst } from '@/lib/booking/time'
 import type { SmsLog } from '@/lib/sms-log'
 
-const KIND_LABEL = { confirm: '확정', remind: '전일 안내' } as const
+const KIND_LABEL = { confirm: '확정', remind: '전일 안내', location: '위치 안내' } as const
 
 const fmtAt = (iso: string) => {
   const { date, time } = isoToKst(iso)
@@ -43,7 +43,7 @@ export default function AdminClient({ logs }: { logs: SmsLog[] }) {
                   <button type="button" onClick={() => setOpen(expanded ? null : l.id)} className="w-full text-left">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="text-[11px] text-gray-400 shrink-0">{fmtAt(l.created_at)}</span>
-                      <span className={`text-[10px] font-700 px-2 py-0.5 rounded-full shrink-0 ${l.kind === 'confirm' ? 'bg-brand-50 text-brand-600' : 'bg-amber-50 text-amber-700'}`}>{KIND_LABEL[l.kind]}</span>
+                      <span className={`text-[10px] font-700 px-2 py-0.5 rounded-full shrink-0 ${l.kind === 'confirm' ? 'bg-brand-50 text-brand-600' : l.kind === 'remind' ? 'bg-amber-50 text-amber-700' : 'bg-sky-50 text-sky-700'}`}>{KIND_LABEL[l.kind]}</span>
                       <span className="text-sm font-600 text-gray-800">{l.customer_name ?? '-'}</span>
                       <span className="text-[11px] text-gray-400">{fmtPhone(l.phone)}</span>
                       <span className={`ml-auto text-[11px] font-700 shrink-0 ${l.status === 'sent' ? 'text-emerald-600' : 'text-red-500'}`}>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { confirmText, remindText, smsBytes, smsStatus } from '../sms-templates'
+import { confirmText, locationText, remindText, smsBytes, smsStatus } from '../sms-templates'
 
 describe('예약 확정 문자', () => {
   it('날짜·요일·오전/오후 시간', () => {
@@ -35,5 +35,16 @@ describe('발송 상태', () => {
     expect(smsStatus(null, null, start)).toBe('none')
     expect(smsStatus('2026-10-06T10:00:00Z', '2026-10-07T01:30:00Z', start)).toBe('sent')
     expect(smsStatus('2026-10-06T10:00:00Z', '2026-10-07T02:00:00Z', start)).toBe('stale')
+  })
+})
+
+describe('위치 안내 문자', () => {
+  it('주소·지도 링크, 단문 80바이트 이하', () => {
+    expect(locationText()).toBe('[온:플로우]\n하남시 미사대로520 한강미사2차 D동 1층\nhttps://naver.me/xAfCReWk')
+    expect(smsBytes(locationText())).toBeLessThanOrEqual(80)
+  })
+  it('발송 상태는 예약 시간과 무관 (보냈으면 완료)', () => {
+    expect(smsStatus('2026-10-06T10:00:00Z', null, '2026-10-07T01:30:00Z', { timeless: true })).toBe('sent')
+    expect(smsStatus(null, null, '2026-10-07T01:30:00Z', { timeless: true })).toBe('none')
   })
 })

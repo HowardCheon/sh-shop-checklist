@@ -31,8 +31,14 @@ export function smsBytes(text: string) {
 
 export const SMS_MAX_BYTES = 80
 
-/** 발송 상태 — 보낸 뒤 예약 시간이 바뀌면 재발송 필요(stale) */
-export function smsStatus(sentAt: string | null, sentForStart: string | null, startAt: string): 'none' | 'sent' | 'stale' {
+/** 위치 안내: 주소 + 네이버 지도 링크 (예약 정보와 무관) */
+export function locationText() {
+  return '[온:플로우]\n하남시 미사대로520 한강미사2차 D동 1층\nhttps://naver.me/xAfCReWk'
+}
+
+/** 발송 상태 — 보낸 뒤 예약 시간이 바뀌면 재발송 필요(stale). timeless(위치 안내)는 시간과 무관 */
+export function smsStatus(sentAt: string | null, sentForStart: string | null, startAt: string, opts: { timeless?: boolean } = {}): 'none' | 'sent' | 'stale' {
   if (!sentAt) return 'none'
+  if (opts.timeless) return 'sent'
   return sentForStart && Date.parse(sentForStart) === Date.parse(startAt) ? 'sent' : 'stale'
 }

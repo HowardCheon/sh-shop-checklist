@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase'
 
 export type SmsLog = {
   id: number
-  kind: 'confirm' | 'remind'
+  kind: 'confirm' | 'remind' | 'location'
   reservation_id: number | null
   customer_name: string | null
   phone: string
@@ -15,7 +15,7 @@ export type SmsLog = {
 }
 
 /** 기록 실패가 발송 결과에 영향을 주지 않도록 오류는 로그만 */
-export async function recordSmsLog(r: { kind: 'confirm' | 'remind'; reservationId: number | null; customerName: string | null; phone: string; text: string; ok: boolean; reason: string | null }) {
+export async function recordSmsLog(r: { kind: 'confirm' | 'remind' | 'location'; reservationId: number | null; customerName: string | null; phone: string; text: string; ok: boolean; reason: string | null }) {
   const { error } = await supabase.from('sh_shop_sms_logs').insert({
     kind: r.kind, reservation_id: r.reservationId, customer_name: r.customerName, phone: r.phone, text: r.text,
     status: r.ok ? 'sent' : 'failed', reason: r.ok ? null : r.reason,

@@ -6,7 +6,7 @@ import { isoToKst, kstNow, addDays } from '@/lib/booking/time'
 import PaymentSheet from './PaymentSheet'
 import ReservationForm, { EMPTY_FORM, saveReservation, type Product, type PaymentMethod } from './ReservationForm'
 import { effectivePrice } from '@/lib/booking/pricing'
-import { confirmText, remindText, smsBytes, smsStatus, SMS_MAX_BYTES } from '@/lib/booking/sms-templates'
+import { confirmText, locationText, remindText, smsBytes, smsStatus, SMS_MAX_BYTES } from '@/lib/booking/sms-templates'
 import { mergeRanges } from '@/lib/booking/closed-slots'
 import ClosedTimeSheet from './ClosedTimeSheet'
 
@@ -33,6 +33,7 @@ interface Reservation {
   confirm_sms_start_at?: string | null
   remind_sms_at?: string | null
   remind_sms_start_at?: string | null
+  location_sms_at?: string | null
   history?: HistoryItem[]
 }
 
@@ -105,14 +106,18 @@ function TrialBadge({ r }: { r: Reservation }) {
 const SMS_KINDS = [
   { type: 'confirm', short: '확정', label: '확정 문자', at: 'confirm_sms_at', startAt: 'confirm_sms_start_at', build: confirmText },
   { type: 'remind', short: '안내', label: '전일 안내 문자', at: 'remind_sms_at', startAt: 'remind_sms_start_at', build: remindText },
+  { type: 'location', short: '위치', label: '위치 안내', at: 'location_sms_at', startAt: null, build: () => locationText() },
 ] as const
+// 위치 안내는 예약 시간과 무관 — 보냈으면 완료
+const kindStatus = (r: Reservation, k: typeof SMS_KINDS[number]) =>
+  smsStatus(r[k.at] ?? null, k.startAt ? r[k.startAt] ?? null : null, r.start_at, { timeless: !k.startAt })
 
 function SmsBadges({ r }: { r: Reservation }) {
   if (r.status === 'cancelled') return null
   return (
     <>
       {SMS_KINDS.map(k => {
-        const st = smsStatus(r[k.at] ?? null, r[k.startAt] ?? null, r.start_at)
+        const st = kindStatus(r, k)
         if (st === 'none') return null
         return st === 'sent'
           ? <span key={k.type} className="text-[10px] font-700 px-2 py-0.5 rounded-full whitespace-nowrap bg-emerald-50 text-emerald-600">{k.short}✓</span>
@@ -131,7 +136,7 @@ function SmsPanel({ res, onSent }: { res: Reservation; onSent: (updated: Partial
   const send = async (k: typeof SMS_KINDS[number]) => {
     const text = k.build(res.customer_name.trim(), res.start_at)
     const bytes = smsBytes(text)
-    const st = smsStatus(res[k.at] ?? null, res[k.startAt] ?? null, res.start_at)
+    const st = kindStatus(res, k)
     const head = st === 'sent' ? '이미 같은 예약 시간으로 보냈어요. 다시 보낼까요?\n\n' : ''
     const warn = bytes > SMS_MAX_BYTES ? ` — ${SMS_MAX_BYTES}바이트 초과, 장문으로 발송될 수 있어요` : ''
     if (!confirm(`${head}${k.label}를 보낼까요? (${bytes}바이트${warn})\n\n${text}`)) return
@@ -155,7 +160,7 @@ function SmsPanel({ res, onSent }: { res: Reservation; onSent: (updated: Partial
       {!hasPhone && <p className="text-[11px] text-gray-400">휴대폰 번호가 없어 보낼 수 없어요</p>}
       {SMS_KINDS.map(k => {
         const at = res[k.at] ?? null
-        const st = smsStatus(at, res[k.startAt] ?? null, res.start_at)
+        const st = kindStatus(res, k)
         const tone = st === 'none'
           ? 'text-white border-transparent'
           : st === 'stale' ? 'bg-orange-50 border-orange-300 text-orange-700' : 'bg-white border-emerald-200 text-gray-700'

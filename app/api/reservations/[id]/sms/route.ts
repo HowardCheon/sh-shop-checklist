@@ -2,16 +2,17 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { sendSms } from '@/lib/solapi'
 import { alertSmsFailure } from '@/lib/alerts'
-import { confirmText, remindText, smsBytes } from '@/lib/booking/sms-templates'
+import { confirmText, locationText, remindText, smsBytes } from '@/lib/booking/sms-templates'
 import { isoToKst } from '@/lib/booking/time'
 import { recordSmsLog } from '@/lib/sms-log'
 
-const TYPES = {
+const TYPES: Record<'confirm' | 'remind' | 'location', { label: string; build: (name: string, startIso: string) => string; at: string; startAt: string | null }> = {
   confirm: { label: '확정', build: confirmText, at: 'confirm_sms_at', startAt: 'confirm_sms_start_at' },
   remind: { label: '전일 안내', build: remindText, at: 'remind_sms_at', startAt: 'remind_sms_start_at' },
-} as const
+  location: { label: '위치 안내', build: () => locationText(), at: 'location_sms_at', startAt: null }, // 예약 시간과 무관
+}
 
-/* 예약 확정·전일 안내 문자 발송 — { type: 'confirm' | 'remind' }. 시간 변경 후 재발송 가능 */
+/* 예약 확정·전일 안내·위치 안내 문자 발송 — { type: 'confirm' | 'remind' | 'location' }. 시간 변경 후 재발송 가능 */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const { type } = await req.json().catch(() => ({}))
@@ -37,7 +38,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const now = new Date().toISOString()
   const { data } = await supabase.from('sh_shop_reservations')
-    .update({ [t.at]: now, [t.startAt]: resv.start_at })
+    .update(t.startAt ? { [t.at]: now, [t.startAt]: resv.start_at } : { [t.at]: now })
     .eq('id', id).select().single()
   const start = isoToKst(resv.start_at)
   await supabase.from('sh_shop_reservation_history').insert({
