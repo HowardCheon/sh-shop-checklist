@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { confirmText, locationText, remindText, smsBytes, smsStatus } from '../sms-templates'
+import { confirmText, locationText, remindText, smsAllowed, smsBytes, smsStatus } from '../sms-templates'
 
 describe('예약 확정 문자', () => {
   it('날짜·요일·오전/오후 시간', () => {
@@ -46,5 +46,14 @@ describe('위치 안내 문자', () => {
   it('발송 상태는 예약 시간과 무관 (보냈으면 완료)', () => {
     expect(smsStatus('2026-10-06T10:00:00Z', null, '2026-10-07T01:30:00Z', { timeless: true })).toBe('sent')
     expect(smsStatus(null, null, '2026-10-07T01:30:00Z', { timeless: true })).toBe('none')
+  })
+})
+
+describe('문자 발송 가능 시점', () => {
+  const start = '2026-10-09T01:30:00Z' // 10:30 KST
+  it('관리 시작 시각 전까지만 가능', () => {
+    expect(smsAllowed(start, Date.parse('2026-10-09T01:29:59Z'))).toBe(true)
+    expect(smsAllowed(start, Date.parse('2026-10-09T01:30:00Z'))).toBe(false)
+    expect(smsAllowed(start, Date.parse('2026-10-09T03:00:00Z'))).toBe(false)
   })
 })

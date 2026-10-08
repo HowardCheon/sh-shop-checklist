@@ -31,6 +31,11 @@ export function smsBytes(text: string) {
 
 export const SMS_MAX_BYTES = 80
 
+/** 문자 발송 가능 — 관리 시작 시각 전까지만 */
+export function smsAllowed(startIso: string, now = Date.now()) {
+  return now < Date.parse(startIso)
+}
+
 /** 위치 안내: 주소 + 네이버 지도 링크 (예약 정보와 무관) */
 export function locationText() {
   return '[온:플로우]\n하남시 미사대로520 한강미사2차 D동 1층\nhttps://naver.me/xAfCReWk'

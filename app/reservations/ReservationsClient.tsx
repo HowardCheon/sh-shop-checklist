@@ -6,7 +6,7 @@ import { isoToKst, kstNow, addDays } from '@/lib/booking/time'
 import PaymentSheet from './PaymentSheet'
 import ReservationForm, { EMPTY_FORM, saveReservation, type Product, type PaymentMethod } from './ReservationForm'
 import { effectivePrice } from '@/lib/booking/pricing'
-import { confirmText, locationText, remindText, smsBytes, smsStatus, SMS_MAX_BYTES } from '@/lib/booking/sms-templates'
+import { confirmText, locationText, remindText, smsAllowed, smsBytes, smsStatus, SMS_MAX_BYTES } from '@/lib/booking/sms-templates'
 import { mergeRanges } from '@/lib/booking/closed-slots'
 import ClosedTimeSheet from './ClosedTimeSheet'
 
@@ -132,8 +132,11 @@ function SmsPanel({ res, onSent }: { res: Reservation; onSent: (updated: Partial
   const [sending, setSending] = useState<string | null>(null)
   const [err, setErr] = useState('')
   const hasPhone = /^01\d{8,9}$/.test((res.customer_phone ?? '').replace(/\D/g, ''))
+  // 관리 시작 시각 전까지만 발송 가능
+  const allowed = smsAllowed(res.start_at)
 
   const send = async (k: typeof SMS_KINDS[number]) => {
+    if (!smsAllowed(res.start_at)) { setErr('관리 시작 시간이 지나 문자를 보낼 수 없어요'); return }
     const text = k.build(res.customer_name.trim(), res.start_at)
     const bytes = smsBytes(text)
     const st = kindStatus(res, k)
@@ -158,6 +161,7 @@ function SmsPanel({ res, onSent }: { res: Reservation; onSent: (updated: Partial
       <p className="text-xs font-700 text-gray-500">문자 보내기</p>
       {err && <p className="text-xs text-red-500 bg-red-50 rounded-lg px-3 py-2">{err}</p>}
       {!hasPhone && <p className="text-[11px] text-gray-400">휴대폰 번호가 없어 보낼 수 없어요</p>}
+      {hasPhone && !allowed && <p className="text-[11px] text-gray-400">관리 시작 시간이 지나 문자를 보낼 수 없어요</p>}
       {SMS_KINDS.map(k => {
         const at = res[k.at] ?? null
         const st = kindStatus(res, k)
@@ -166,7 +170,7 @@ function SmsPanel({ res, onSent }: { res: Reservation; onSent: (updated: Partial
           : st === 'stale' ? 'bg-orange-50 border-orange-300 text-orange-700' : 'bg-white border-emerald-200 text-gray-700'
         return (
           // 문자 이름·발송 상태·보내기를 하나의 버튼으로
-          <button key={k.type} type="button" onClick={() => send(k)} disabled={!hasPhone || sending !== null}
+          <button key={k.type} type="button" onClick={() => send(k)} disabled={!hasPhone || !allowed || sending !== null}
             className={`block w-full sm:w-80 text-left rounded-xl border px-3 py-2 transition-colors disabled:opacity-40 active:scale-[0.99] ${tone}`}
             style={st === 'none' ? { background: '#bc7659' } : undefined}>
             <span className="block text-sm font-700">

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { sendSms } from '@/lib/solapi'
 import { alertSmsFailure } from '@/lib/alerts'
-import { confirmText, locationText, remindText, smsBytes } from '@/lib/booking/sms-templates'
+import { confirmText, locationText, remindText, smsAllowed, smsBytes } from '@/lib/booking/sms-templates'
 import { isoToKst } from '@/lib/booking/time'
 import { recordSmsLog } from '@/lib/sms-log'
 
@@ -22,6 +22,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const { data: resv } = await supabase.from('sh_shop_reservations').select('*').eq('id', id).maybeSingle()
   if (!resv) return NextResponse.json({ error: '예약 없음' }, { status: 404 })
   if (resv.status !== 'scheduled') return NextResponse.json({ error: '예약 상태인 건만 문자를 보낼 수 있습니다' }, { status: 409 })
+  if (!smsAllowed(resv.start_at)) return NextResponse.json({ error: '관리 시작 시간이 지나 문자를 보낼 수 없습니다' }, { status: 409 })
   const phone = (resv.customer_phone ?? '').replace(/\D/g, '')
   if (!/^01\d{8,9}$/.test(phone)) return NextResponse.json({ error: '휴대폰 번호가 없는 예약입니다' }, { status: 400 })
 

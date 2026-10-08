@@ -39,6 +39,15 @@ try {
   const locLog = await sql(`select kind, status, text from sh_shop_sms_logs where reservation_id = ${id} and kind = 'location'`)
   check('위치 안내 발송 → 주소·지도 링크, 발송 시각·기록', r.status === 200 && r.body.text.includes('미사대로520') && r.body.text.includes('naver.me') && loc[0]?.location_sms_at && locLog.length === 1 && locLog[0].status === 'sent', [r, loc, locLog])
 
+  // 관리 시작 시각이 지난 예약은 발송 불가
+  const yesterday = new Date(Date.now() + 9 * 3600e3 - 86400e3).toISOString().slice(0, 10)
+  const pastStart = `${yesterday}T06:00:00+09:00` // 영업시간 밖이라 실제 예약과 겹치지 않음
+  r = await call('POST', '/api/reservations', { customer_name: '지난예약', customer_phone: '010-9999-0094', start_at: pastStart, duration_min: 30, allow_closed: true })
+  const pastId = r.body?.id
+  r = await call('POST', `/api/reservations/${pastId}/sms`, { type: 'confirm' })
+  const pastLogs = await sql(`select count(*)::int n from sh_shop_sms_logs where reservation_id = ${pastId}`)
+  check('시작 시각 지난 예약 → 409, 발송·기록 없음', r.status === 409 && pastLogs[0].n === 0, [r, pastLogs])
+
   // 발송 실패도 기록 (개발용 가짜 실패 번호)
   r = await call('POST', '/api/reservations', { customer_name: '실패테스트', customer_phone: '010-9999-0092', product_id: 2, product_name: '베이직 피부관리', duration_min: 60, start_at: `${day}T13:00:00+09:00`, price: 80000 })
   const failId = r.body.id
