@@ -40,7 +40,9 @@ export async function adminClient(base) {
 }
 
 export async function cleanupTestData() {
-  await sql(`delete from sh_shop_trial_packages where customer_id in (select id from sh_shop_customers where phone like '0109999%');
+  await sql(`delete from sh_shop_sms_logs where phone like '0109999%';
+             delete from sh_shop_phone_verifications where phone like '0109999%';
+             delete from sh_shop_trial_packages where customer_id in (select id from sh_shop_customers where phone like '0109999%');
              delete from sh_shop_prepaid_ledger where customer_id in (select id from sh_shop_customers where phone like '0109999%');
              delete from sh_shop_payments where customer_id in (select id from sh_shop_customers where phone like '0109999%');
              delete from sh_shop_reservation_history where reservation_id in (select id from sh_shop_reservations where customer_phone like '0109999%');

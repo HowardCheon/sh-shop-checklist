@@ -50,6 +50,8 @@ export async function sendSms(to: string, text: string): Promise<SmsResult> {
   // 개발용: 실제 발송 없이 성공 처리 (운영에서는 무시)
   if (process.env.SMS_DRY_RUN === 'true' && process.env.NODE_ENV !== 'production') {
     console.log('[SMS_DRY_RUN]', to, JSON.stringify(text))
+    // 실패 기록 점검용: 지정한 번호는 가짜 실패
+    if (to === process.env.SMS_DRY_RUN_FAIL_TO) return { ok: false, reason: 'DRY_RUN 가짜 실패' }
     return { ok: true }
   }
   const key = process.env.SOLAPI_API_KEY

@@ -4,6 +4,7 @@ import { sendSms } from '@/lib/solapi'
 import { alertSmsFailure } from '@/lib/alerts'
 import { confirmText, remindText, smsBytes } from '@/lib/booking/sms-templates'
 import { isoToKst } from '@/lib/booking/time'
+import { recordSmsLog } from '@/lib/sms-log'
 
 const TYPES = {
   confirm: { label: '확정', build: confirmText, at: 'confirm_sms_at', startAt: 'confirm_sms_start_at' },
@@ -25,6 +26,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const text = t.build(resv.customer_name.trim(), resv.start_at)
   const sent = await sendSms(phone, text)
+  await recordSmsLog({
+    kind: type, reservationId: resv.id, customerName: resv.customer_name, phone, text,
+    ok: sent.ok, reason: sent.ok ? null : sent.reason,
+  })
   if (!sent.ok) {
     await alertSmsFailure(phone, sent.reason).catch(e => console.error('SMS 실패 알림 오류', e))
     return NextResponse.json({ error: `문자 발송 실패: ${sent.reason}` }, { status: 502 })
