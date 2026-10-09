@@ -16,11 +16,12 @@ const nextMonth = (month: string) => {
 export async function listCategories(): Promise<Category[]> {
   const [cats, counts] = await Promise.all([
     supabase.from('sh_shop_ledger_categories').select('id, io, name, sort, hidden').order('io').order('sort').order('id'),
-    supabase.from('sh_shop_ledger_entries').select('category_id'),
+    supabase.rpc('sh_shop_ledger_category_uses'), // 행 수 상한 없이 DB 에서 집계
   ])
   if (cats.error) throw cats.error
+  if (counts.error) throw counts.error
   const uses = new Map<number, number>()
-  for (const r of counts.data ?? []) uses.set(r.category_id, (uses.get(r.category_id) ?? 0) + 1)
+  for (const r of (counts.data ?? []) as { category_id: number; uses: number }[]) uses.set(Number(r.category_id), Number(r.uses))
   return (cats.data ?? []).map(c => ({ ...c, uses: uses.get(c.id) ?? 0 })) as Category[]
 }
 
@@ -33,10 +34,12 @@ export async function loadMonth(month: string) {
   const autoStart = fromIso > autoFromIso ? fromIso : autoFromIso
   const autoActive = autoStart < toIso
 
-  const [entries, prepaidAll, charges, payments, balances, categories] = await Promise.all([
+  const [entries, prepaidMonth, prepaidOpen, charges, payments, balances, categories] = await Promise.all([
     supabase.from('sh_shop_ledger_entries').select('*, category:sh_shop_ledger_categories(id, name)')
       .gte('entry_date', fromDate).lt('entry_date', toDate).order('created_at'),
-    supabase.from('sh_shop_prepaid_ledger').select('created_at, type, cash_amount, bonus_amount').lt('created_at', toIso),
+    // 그 달 기록만 읽고, 월초 잔액은 DB 합계 (원장이 1000건을 넘어도 정확)
+    supabase.from('sh_shop_prepaid_ledger').select('created_at, type, cash_amount, bonus_amount').gte('created_at', fromIso).lt('created_at', toIso),
+    supabase.rpc('sh_shop_ledger_prepaid_before', { p_before: fromIso }),
     autoActive
       ? supabase.from('sh_shop_prepaid_ledger').select('created_at, type, cash_amount, customer:sh_shop_customers(id, name)')
         .in('type', ['charge', 'refund']).gte('created_at', autoStart).lt('created_at', toIso)
@@ -48,7 +51,7 @@ export async function loadMonth(month: string) {
     supabase.from('sh_shop_customers').select('id, name, prepaid_cash, prepaid_bonus').or('prepaid_cash.gt.0,prepaid_bonus.gt.0').order('name'),
     listCategories(),
   ])
-  for (const r of [entries, prepaidAll, charges, payments, balances]) if (r.error) throw r.error
+  for (const r of [entries, prepaidMonth, prepaidOpen, charges, payments, balances]) if (r.error) throw r.error
 
   // 첫체험 결제 구분
   const payIds = (payments.data ?? []).map(p => p.id)
@@ -80,11 +83,13 @@ export async function loadMonth(month: string) {
     }),
   ]
 
-  const prepaid: PrepaidRow[] = (prepaidAll.data ?? []).map(r => ({ at: r.created_at, type: r.type, cash: r.cash_amount, bonus: r.bonus_amount }))
+  const prepaid: PrepaidRow[] = (prepaidMonth.data ?? []).map(r => ({ at: r.created_at, type: r.type, cash: r.cash_amount, bonus: r.bonus_amount }))
+  const openRow = ((prepaidOpen.data ?? []) as { cash: number; bonus: number }[])[0]
   return {
     entries: (entries.data ?? []) as EntryRow[],
     auto,
     prepaid,
+    prepaidOpen: { cash: Number(openRow?.cash ?? 0), bonus: Number(openRow?.bonus ?? 0) },
     balances: (balances.data ?? []).map(b => ({ id: b.id, name: b.name, cash: b.prepaid_cash, bonus: b.prepaid_bonus })),
     categories,
     autoFrom: LEDGER_AUTO_FROM,

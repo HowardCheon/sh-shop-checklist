@@ -52,6 +52,16 @@ try {
   check('자동 매출: 충전 50만(실제) + 첫체험 9.9만(카드)', autoItems.some(i => i.row.kind === 'charge' && i.row.amount === 500000) && autoItems.some(i => i.row.kind === 'trial' && i.row.amount === 99000 && i.row.method === 'card'), autoItems.map(i => i.row))
   check('선불 현황 충전 증가', s.prepaid.charge.cash === before.prepaid.charge.cash + 500000, [s.prepaid.charge, before.prepaid.charge])
   check('선불 보유 고객 목록에 포함', r.body.balances.some(b => b.id === cid && b.cash === 500000), r.body.balances.length)
+  // 고객을 삭제해도 지난 매출·선불 현황은 그대로 (선불 원장 보존)
+  r = await call('POST', '/api/customers', { name: '가계부삭제테스트', phone: '010-9999-0162' })
+  const delCid = r.body.id
+  await call('POST', `/api/customers/${delCid}/charge`, { amount: 500000 })
+  const beforeDel = (await call('GET', `/api/ledger?month=${month}`)).body.summary
+  await call('DELETE', `/api/customers/${delCid}`)
+  const afterDel = (await call('GET', `/api/ledger?month=${month}`)).body.summary
+  check('고객 삭제 후에도 매출·선불 충전 그대로', afterDel.pnl.revenueAuto === beforeDel.pnl.revenueAuto && afterDel.prepaid.charge.cash === beforeDel.prepaid.charge.cash, [beforeDel.pnl.revenueAuto, afterDel.pnl.revenueAuto])
+  await sql(`delete from sh_shop_prepaid_ledger where customer_id is null and created_at > now() - interval '1 hour' and cash_amount = 500000 and memo is null`)
+
   await call('POST', `/api/customers/${cid}/refund`, {})
   r = await call('GET', `/api/ledger?month=${month}`)
   s = r.body.summary

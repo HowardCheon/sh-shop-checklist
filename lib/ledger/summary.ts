@@ -41,7 +41,8 @@ function rank(pairs: [string, number][]): Ranked[] {
   return [...sum].map(([label, count]) => ({ label, count })).filter(r => r.count !== 0).sort((a, b) => b.count - a.count)
 }
 
-export function summarizeMonth({ month, entries, auto, prepaid }: { month: string; entries: EntryRow[]; auto: AutoRow[]; prepaid: PrepaidRow[] }) {
+/** prepaidOpen: 그 달 이전 선불 합계(DB 집계) — 주면 prepaid 에는 그 달 기록만 넘겨도 됨 */
+export function summarizeMonth({ month, entries, auto, prepaid, prepaidOpen }: { month: string; entries: EntryRow[]; auto: AutoRow[]; prepaid: PrepaidRow[]; prepaidOpen?: Money }) {
   const inMonth = (date: string) => date.slice(0, 7) === month
   const monthAuto = auto.filter(a => inMonth(kstDateOf(a.at)))
   const monthEntries = entries.filter(e => inMonth(e.entry_date))
@@ -49,7 +50,7 @@ export function summarizeMonth({ month, entries, auto, prepaid }: { month: strin
 
   // 선불 충전 현황 (실제/보너스)
   const zero = (): Money => ({ cash: 0, bonus: 0 })
-  const open = zero(), charge = zero(), use = zero(), refund = zero()
+  const open = prepaidOpen ? { ...prepaidOpen } : zero(), charge = zero(), use = zero(), refund = zero()
   for (const p of prepaid) {
     const d = kstDateOf(p.at)
     if (d.slice(0, 7) < month) { open.cash += p.cash; open.bonus += p.bonus; continue }

@@ -34,6 +34,17 @@ describe('선불 충전 현황', () => {
   })
 })
 
+describe('선불 월초 잔액을 DB 합계로 받는 경우 (행 수 상한 대비)', () => {
+  it('prepaidOpen + 그 달 기록만으로 계산', () => {
+    const s = summarizeMonth({
+      month: '2026-10', entries: [], auto: [], prepaidOpen: { cash: 370000, bonus: 0 },
+      prepaid: [{ at: '2026-10-06T13:00:00Z', type: 'charge', cash: 2000000, bonus: 250000 }],
+    })
+    expect(s.prepaid.open).toEqual({ cash: 370000, bonus: 0 })
+    expect(s.prepaid.close).toEqual({ cash: 2370000, bonus: 250000 })
+  })
+})
+
 describe('손익', () => {
   const auto: AutoRow[] = [
     { at: '2026-10-06T13:00:00Z', kind: 'charge', amount: 2000000, method: null, label: '선불 충전 · 정순영' },
