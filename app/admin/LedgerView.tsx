@@ -29,9 +29,9 @@ function RankCard({ title, rows, empty }: { title: string; rows: Ranked[]; empty
     <div className="bg-white/85 rounded-2xl border border-brand-100 p-3">
       <p className="text-xs font-700 text-gray-400 mb-1.5">{title}</p>
       {rows.length === 0 ? <p className="text-[11px] text-gray-300">{empty}</p> : (
-        <ul className="space-y-1">
+        <ul className="border-t border-brand-100 divide-y divide-brand-100">
           {rows.map(r => (
-            <li key={r.label} className="flex justify-between text-xs">
+            <li key={r.label} className="flex justify-between text-xs py-1">
               <span className="text-gray-600">{r.label}</span>
               <span className={`font-600 ${r.count < 0 ? 'text-red-500' : 'text-gray-800'}`}>{signed(r.count).replace('+', '')}</span>
             </li>
@@ -88,24 +88,24 @@ export default function LedgerView() {
           {/* 선불 충전 현황 */}
           <div className="bg-white/85 rounded-2xl border border-brand-100 p-3">
             <p className="text-xs font-700 text-gray-400 mb-2">선불 충전 현황</p>
-            <table className="w-full text-xs">
+            <table className="w-full text-xs border-collapse border border-brand-100 [&_td]:border [&_td]:border-brand-100 [&_th]:border [&_th]:border-brand-100">
               <thead>
-                <tr className="text-gray-400">
-                  <th className="text-left font-600 pb-1"></th>
-                  <th className="text-right font-600 pb-1">실제 금액</th>
-                  <th className="text-right font-600 pb-1">보너스</th>
-                  <th className="text-right font-600 pb-1">합계</th>
+                <tr className="text-gray-400 bg-brand-50/60">
+                  <th className="text-left font-600 px-2 py-1"></th>
+                  <th className="text-right font-600 px-2 py-1">실제 금액</th>
+                  <th className="text-right font-600 px-2 py-1">보너스</th>
+                  <th className="text-right font-600 px-2 py-1">합계</th>
                 </tr>
               </thead>
               <tbody>
                 {prepaidRows.map(r => {
                   const strong = r.sign === ''
                   return (
-                    <tr key={r.label} className={strong ? 'font-700 text-brand-700 border-t border-brand-50' : 'text-gray-600'}>
-                      <td className="py-1">{r.sign && <span className="text-gray-400 mr-0.5">{r.sign}</span>}{r.label}</td>
-                      <td className="py-1 text-right">{won(r.v.cash)}</td>
-                      <td className="py-1 text-right">{won(r.v.bonus)}</td>
-                      <td className="py-1 text-right">{won(r.v.cash + r.v.bonus)}</td>
+                    <tr key={r.label} className={strong ? 'font-700 text-brand-700 bg-brand-50/30' : 'text-gray-600'}>
+                      <td className="px-2 py-1">{r.sign && <span className="text-gray-400 mr-0.5">{r.sign}</span>}{r.label}</td>
+                      <td className="px-2 py-1 text-right">{won(r.v.cash)}</td>
+                      <td className="px-2 py-1 text-right">{won(r.v.bonus)}</td>
+                      <td className="px-2 py-1 text-right">{won(r.v.cash + r.v.bonus)}</td>
                     </tr>
                   )
                 })}
@@ -141,11 +141,11 @@ export default function LedgerView() {
                 {s.pnl.byKind.map(k => <span key={k.label} className="text-[10px] px-2 py-0.5 rounded-full bg-brand-50 text-brand-600">{k.label} {signed(k.count).replace('+', '')}</span>)}
               </div>
             )}
-            <div className="flex justify-between items-baseline">
+            <div className="flex justify-between items-baseline border-t border-brand-100 pt-1.5">
               <span className="text-sm text-gray-700">지출</span>
               <span className="text-base font-700 text-gray-800">{won(s.pnl.expense)}</span>
             </div>
-            <div className="flex justify-between items-baseline border-t border-brand-50 pt-1.5">
+            <div className="flex justify-between items-baseline border-t-2 border-brand-200 pt-1.5">
               <span className="text-sm font-700 text-brand-700">순이익</span>
               <span className={`font-serif text-xl font-extrabold ${s.pnl.net < 0 ? 'text-red-500' : 'text-brand-700'}`}>{signed(s.pnl.net).replace('+', '')}</span>
             </div>
