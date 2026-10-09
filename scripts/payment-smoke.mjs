@@ -2,7 +2,7 @@
 import { adminClient, check, cleanupTestData, env, finish, sql } from './smoke-lib.mjs'
 
 const BASE = process.argv[2] || 'http://localhost:3210'
-const day = new Date(Date.now() + 9 * 3600e3 + 12 * 86400e3).toISOString().slice(0, 10)
+const day = new Date(Date.now() + 9 * 3600e3 + 62 * 86400e3).toISOString().slice(0, 10) // 실제 손님 예약과 겹치지 않도록 먼 날짜
 
 // ── 인증
 let r = await fetch(BASE + '/api/customers')
