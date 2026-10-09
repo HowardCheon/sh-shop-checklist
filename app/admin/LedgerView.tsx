@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { EVIDENCE_LABEL, METHOD_LABEL, type EntryRow, type MonthSummary, type Ranked } from '@/lib/ledger/summary'
+import { METHOD_LABEL, type EntryRow, type MonthSummary, type Ranked } from '@/lib/ledger/summary'
 import type { Category } from '@/lib/ledger/repo'
 import { isoToKst } from '@/lib/booking/time'
 import EntrySheet from './EntrySheet'
@@ -154,9 +154,8 @@ export default function LedgerView() {
 
           <div className="grid grid-cols-2 gap-2">
             <RankCard title="지출 항목별" rows={s.byCategory} empty="지출 없음" />
-            <RankCard title="증빙별 지출 (신고용)" rows={s.byEvidence} empty="지출 없음" />
+            <RankCard title="결제수단별 매출" rows={s.byMethod} empty="매출 없음" />
           </div>
-          <RankCard title="결제수단별 매출" rows={s.byMethod} empty="매출 없음" />
 
           {/* 날짜별 내역 */}
           <div className="space-y-2">
@@ -186,10 +185,10 @@ export default function LedgerView() {
                         <span className="text-sm">{item.row.io === 'in' ? '💰' : '🧾'}</span>
                         <div className="flex-1 min-w-0">
                           <p className={`text-xs text-gray-700 truncate ${item.row.excluded ? 'line-through' : ''}`}>
-                            {item.row.category.name}{item.row.vendor ? ` · ${item.row.vendor}` : ''}{item.row.memo ? ` · ${item.row.memo}` : ''}
+                            {item.row.category.name}{item.row.memo ? ` · ${item.row.memo}` : ''}
                           </p>
                           <p className="text-[10px] text-gray-400">
-                            {item.row.method ? METHOD_LABEL[item.row.method] : '수단 없음'}{item.row.io === 'out' ? ` · ${EVIDENCE_LABEL[item.row.evidence]}` : ''}
+                            {item.row.method ? METHOD_LABEL[item.row.method] : '수단 없음'}
                             {item.row.excluded ? ` · 제외(${item.row.exclude_reason ?? '사유 없음'})` : ''}
                           </p>
                         </div>

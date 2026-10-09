@@ -1,10 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { EVIDENCE_LABEL, METHOD_LABEL, type Evidence, type EntryRow, type Io, type Method } from '@/lib/ledger/summary'
+import { METHOD_LABEL, type EntryRow, type Io, type Method } from '@/lib/ledger/summary'
 import type { Category } from '@/lib/ledger/repo'
 
-const LAST_KEY = 'ledger_last' // 마지막 결제수단·증빙 기억
+const LAST_KEY = 'ledger_last' // 마지막 결제수단 기억
 const kstToday = () => new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10)
 const chip = (on: boolean) => `px-2.5 py-1 rounded-full text-xs font-600 border ${on ? 'bg-brand-500 border-brand-500 text-white' : 'bg-white border-brand-100 text-brand-600'}`
 
@@ -16,7 +16,7 @@ export default function EntrySheet({ categories, initial, onClose, onSaved }: {
   onSaved: () => void
 }) {
   const last = (() => {
-    try { return JSON.parse(localStorage.getItem(LAST_KEY) ?? '{}') as { method?: Method; evidence?: Evidence } } catch { return {} }
+    try { return JSON.parse(localStorage.getItem(LAST_KEY) ?? '{}') as { method?: Method } } catch { return {} }
   })()
   const [form, setForm] = useState({
     entry_date: initial?.entry_date ?? kstToday(),
@@ -24,8 +24,6 @@ export default function EntrySheet({ categories, initial, onClose, onSaved }: {
     amount: initial ? String(initial.amount) : '',
     category_id: initial?.category.id ?? 0,
     method: (initial ? initial.method : last.method ?? 'card') as Method | null,
-    evidence: (initial?.evidence ?? last.evidence ?? 'card') as Evidence,
-    vendor: initial?.vendor ?? '',
     memo: initial?.memo ?? '',
     excluded: initial?.excluded ?? false,
     exclude_reason: initial?.exclude_reason ?? '',
@@ -44,11 +42,11 @@ export default function EntrySheet({ categories, initial, onClose, onSaved }: {
     try {
       const res = await fetch(initial ? `/api/ledger/entries/${initial.id}` : '/api/ledger/entries', {
         method: initial ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, amount: Number(form.amount), method: form.method, evidence: form.io === 'in' ? 'unknown' : form.evidence }),
+        body: JSON.stringify({ ...form, amount: Number(form.amount) }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) { setErr(data.error ?? '저장 실패'); return }
-      if (form.io === 'out') localStorage.setItem(LAST_KEY, JSON.stringify({ method: form.method, evidence: form.evidence }))
+      if (form.io === 'out') localStorage.setItem(LAST_KEY, JSON.stringify({ method: form.method }))
       onSaved()
     } catch {
       setErr('네트워크 오류입니다')
@@ -107,23 +105,9 @@ export default function EntrySheet({ categories, initial, onClose, onSaved }: {
             {(Object.keys(METHOD_LABEL) as Method[]).map(m => <button key={m} type="button" onClick={() => setForm(f => ({ ...f, method: m }))} className={chip(form.method === m)}>{METHOD_LABEL[m]}</button>)}
           </div>
         </div>
-        {form.io === 'out' && (
-          <div>
-            <label className={lbl}>증빙 (세금 신고용)</label>
-            <div className="flex flex-wrap gap-1.5">
-              {(Object.keys(EVIDENCE_LABEL) as Evidence[]).map(v => <button key={v} type="button" onClick={() => setForm(f => ({ ...f, evidence: v }))} className={chip(form.evidence === v)}>{EVIDENCE_LABEL[v]}</button>)}
-            </div>
-          </div>
-        )}
-        <div className="grid grid-cols-2 gap-2">
-          <div>
-            <label className={lbl}>거래처 (선택)</label>
-            <input className={inp} value={form.vendor} placeholder="쿠팡, 관리사무소…" onChange={e => setForm(f => ({ ...f, vendor: e.target.value }))} />
-          </div>
-          <div>
-            <label className={lbl}>메모 (선택)</label>
-            <input className={inp} value={form.memo} onChange={e => setForm(f => ({ ...f, memo: e.target.value }))} />
-          </div>
+        <div>
+          <label className={lbl}>메모 (선택)</label>
+          <input className={inp} value={form.memo} placeholder="쿠팡 앰플, 10월 관리비…" onChange={e => setForm(f => ({ ...f, memo: e.target.value }))} />
         </div>
         <label className="flex items-center gap-2 text-xs text-gray-600">
           <input type="checkbox" checked={form.excluded} onChange={e => setForm(f => ({ ...f, excluded: e.target.checked }))} />

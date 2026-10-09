@@ -3,8 +3,8 @@ import { kstDateOf, summarizeMonth, validateEntry, type AutoRow, type EntryRow, 
 
 const cat = (id: number, name: string) => ({ id, name })
 const entry = (p: Partial<EntryRow>): EntryRow => ({
-  id: 1, entry_date: '2026-10-08', io: 'out', amount: 10000, category: cat(1, '재료비'), method: 'card', evidence: 'card',
-  vendor: null, memo: null, excluded: false, exclude_reason: null, ...p,
+  id: 1, entry_date: '2026-10-08', io: 'out', amount: 10000, category: cat(1, '재료비'), method: 'card',
+  memo: null, excluded: false, exclude_reason: null, ...p,
 })
 
 describe('KST 날짜', () => {
@@ -53,10 +53,10 @@ describe('손익', () => {
     { at: '2026-10-10T02:00:00Z', kind: 'refund', amount: -100000, method: null, label: '선불 환불 · 홍길동' },
   ]
   const entries: EntryRow[] = [
-    entry({ id: 1, amount: 68000, category: cat(1, '재료비'), evidence: 'card' }),
-    entry({ id: 2, amount: 500000, category: cat(2, '임대료'), method: 'transfer', evidence: 'tax_invoice' }),
-    entry({ id: 3, amount: 30000, category: cat(1, '재료비'), method: 'cash', evidence: 'none' }),
-    entry({ id: 4, io: 'in', amount: 200000, category: cat(9, '시술 매출(수기)'), method: 'cash', evidence: 'unknown', entry_date: '2026-10-01' }),
+    entry({ id: 1, amount: 68000, category: cat(1, '재료비') }),
+    entry({ id: 2, amount: 500000, category: cat(2, '임대료'), method: 'transfer' }),
+    entry({ id: 3, amount: 30000, category: cat(1, '재료비'), method: 'cash' }),
+    entry({ id: 4, io: 'in', amount: 200000, category: cat(9, '시술 매출(수기)'), method: 'cash', entry_date: '2026-10-01' }),
     entry({ id: 5, io: 'in', amount: 2000000, category: cat(9, '시술 매출(수기)'), excluded: true, exclude_reason: '중복', entry_date: '2026-10-01' }),
     entry({ id: 6, amount: 999, category: cat(1, '재료비'), entry_date: '2026-09-30' }), // 다른 달
   ]
@@ -73,9 +73,9 @@ describe('손익', () => {
       { label: '환불', count: -100000 }, { label: '시술 매출(수기)', count: 200000 },
     ])
   })
-  it('지출 항목별·증빙별', () => {
+  it('지출 항목별 (증빙 집계는 없음)', () => {
     expect(s.byCategory).toEqual([{ label: '임대료', count: 500000 }, { label: '재료비', count: 98000 }])
-    expect(s.byEvidence).toEqual([{ label: '세금계산서', count: 500000 }, { label: '카드영수증', count: 68000 }, { label: '간이영수증·없음', count: 30000 }])
+    expect(s).not.toHaveProperty('byEvidence')
   })
   it('결제수단별 매출 (충전은 수단 미기록, 수기 포함)', () => {
     expect(s.byMethod).toEqual([
@@ -93,11 +93,11 @@ describe('손익', () => {
 
 describe('입력 검증', () => {
   const cats = [{ id: 1, io: 'out' as const, name: '재료비' }, { id: 9, io: 'in' as const, name: '제품 판매' }]
-  const ok = { entry_date: '2026-10-08', io: 'out', amount: 68000, category_id: 1, method: 'card', evidence: 'card', vendor: ' 쿠팡 ', memo: '' }
-  it('정리된 값', () => {
-    expect(validateEntry(ok, cats)).toEqual({
-      entry_date: '2026-10-08', io: 'out', amount: 68000, category_id: 1, method: 'card', evidence: 'card',
-      vendor: '쿠팡', memo: null, excluded: false, exclude_reason: null,
+  const ok = { entry_date: '2026-10-08', io: 'out', amount: 68000, category_id: 1, method: 'card', memo: ' 쿠팡 ' }
+  it('정리된 값 (증빙·거래처는 받지 않음)', () => {
+    expect(validateEntry({ ...ok, evidence: 'card', vendor: '쿠팡' }, cats)).toEqual({
+      entry_date: '2026-10-08', io: 'out', amount: 68000, category_id: 1, method: 'card',
+      memo: '쿠팡', excluded: false, exclude_reason: null,
     })
   })
   it('오류', () => {
@@ -106,6 +106,5 @@ describe('입력 검증', () => {
     expect(() => validateEntry({ ...ok, entry_date: '2026-13-01' }, cats)).toThrow(/날짜/)
     expect(() => validateEntry({ ...ok, category_id: 9 }, cats)).toThrow(/항목/) // 지출에 수입 항목
     expect(() => validateEntry({ ...ok, method: 'bitcoin' }, cats)).toThrow(/결제수단/)
-    expect(() => validateEntry({ ...ok, evidence: 'x' }, cats)).toThrow(/증빙/)
   })
 })

@@ -14,28 +14,30 @@ try {
   check('월 조회', r.status === 200 && r.body.summary && Array.isArray(r.body.categories), r.status)
   const before = r.body.summary
   const cats = r.body.categories
-  const material = cats.find(c => c.io === 'out' && c.name === '재료비')
+  const visible = io => cats.filter(c => c.io === io && !c.hidden && !c.name.startsWith('스모크')).map(c => c.name)
+  check('항목 정리: 지출 7개·수입 2개', JSON.stringify(visible('out')) === JSON.stringify(['재료·소모품', '임대·관리비', '광고·마케팅', '수수료·세금', '가구·장비', '공사비', '기타']) && JSON.stringify(visible('in')) === JSON.stringify(['제품 판매', '기타 수입']), [visible('out'), visible('in')])
+  const material = cats.find(c => c.io === 'out' && c.name === '재료·소모품')
   const income = cats.find(c => c.io === 'in' && c.name === '제품 판매')
   r = await call('GET', '/api/ledger?month=2026-13')
   check('잘못된 월 → 400', r.status === 400, r)
 
   // 직접 입력
-  r = await call('POST', '/api/ledger/entries', { entry_date: today, io: 'out', amount: 68000, category_id: material.id, method: 'card', evidence: 'card', vendor: '쿠팡', memo: '스모크 재료' })
+  r = await call('POST', '/api/ledger/entries', { entry_date: today, io: 'out', amount: 68000, category_id: material.id, method: 'card', memo: '스모크 재료' })
   const eid = r.body?.id
   check('지출 입력', r.status === 200 && eid, r)
-  r = await call('POST', '/api/ledger/entries', { entry_date: today, io: 'out', amount: 1000, category_id: income.id, method: 'card', evidence: 'card', memo: '스모크 불일치' })
+  r = await call('POST', '/api/ledger/entries', { entry_date: today, io: 'out', amount: 1000, category_id: income.id, method: 'card', memo: '스모크 불일치' })
   check('지출에 수입 항목 → 400', r.status === 400, r)
-  r = await call('POST', '/api/ledger/entries', { entry_date: today, io: 'in', amount: 30000, category_id: income.id, method: 'cash', evidence: 'none', memo: '스모크 판매' })
+  r = await call('POST', '/api/ledger/entries', { entry_date: today, io: 'in', amount: 30000, category_id: income.id, method: 'cash', memo: '스모크 판매' })
   const iid = r.body?.id
-  r = await call('PUT', `/api/ledger/entries/${eid}`, { entry_date: today, io: 'out', amount: 70000, category_id: material.id, method: 'card', evidence: 'cash_receipt', vendor: '쿠팡', memo: '스모크 재료' })
-  check('지출 수정', r.status === 200 && r.body.amount === 70000 && r.body.evidence === 'cash_receipt', r)
+  r = await call('PUT', `/api/ledger/entries/${eid}`, { entry_date: today, io: 'out', amount: 70000, category_id: material.id, method: 'cash', memo: '스모크 재료' })
+  check('지출 수정', r.status === 200 && r.body.amount === 70000 && r.body.method === 'cash', r)
 
   r = await call('GET', `/api/ledger?month=${month}`)
   let s = r.body.summary
   check('지출·수기 매출 합계 반영', s.pnl.expense === before.pnl.expense + 70000 && s.pnl.revenueManual === before.pnl.revenueManual + 30000, [s.pnl, before.pnl])
 
   // 제외 표시 → 합계에서 빠짐
-  r = await call('PUT', `/api/ledger/entries/${iid}`, { entry_date: today, io: 'in', amount: 30000, category_id: income.id, method: 'cash', evidence: 'none', memo: '스모크 판매', excluded: true, exclude_reason: '스모크 중복' })
+  r = await call('PUT', `/api/ledger/entries/${iid}`, { entry_date: today, io: 'in', amount: 30000, category_id: income.id, method: 'cash', memo: '스모크 판매', excluded: true, exclude_reason: '스모크 중복' })
   r = await call('GET', `/api/ledger?month=${month}`)
   s = r.body.summary
   const listed = s.days.flatMap(d => d.items).some(i => i.type === 'entry' && i.row.id === iid && i.row.excluded)

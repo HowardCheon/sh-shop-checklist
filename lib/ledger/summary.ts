@@ -3,7 +3,6 @@ import { isoToKst } from '@/lib/booking/time'
 
 export type Io = 'in' | 'out'
 export type Method = 'card' | 'cash' | 'transfer'
-export type Evidence = 'card' | 'cash_receipt' | 'tax_invoice' | 'none' | 'unknown'
 export type Ranked = { label: string; count: number }
 type Money = { cash: number; bonus: number }
 
@@ -16,8 +15,6 @@ export type EntryRow = {
   amount: number
   category: { id: number; name: string }
   method: Method | null
-  evidence: Evidence
-  vendor: string | null
   memo: string | null
   excluded: boolean
   exclude_reason: string | null
@@ -27,9 +24,6 @@ export type DayItem = { type: 'auto'; row: AutoRow } | { type: 'entry'; row: Ent
 export type Day = { date: string; total: number; items: DayItem[] }
 
 export const METHOD_LABEL: Record<Method, string> = { card: '카드', cash: '현금', transfer: '계좌이체' }
-export const EVIDENCE_LABEL: Record<Evidence, string> = {
-  card: '카드영수증', cash_receipt: '현금영수증', tax_invoice: '세금계산서', none: '간이영수증·없음', unknown: '미확인',
-}
 const KIND_LABEL: Record<AutoRow['kind'], string> = { charge: '선불 충전', trial: '첫체험', payment: '시술·결제', refund: '환불' }
 
 export const kstDateOf = (iso: string) => isoToKst(iso).date
@@ -96,7 +90,6 @@ export function summarizeMonth({ month, entries, auto, prepaid, prepaidOpen }: {
     prepaid: { open, charge, use, refund, close },
     pnl: { revenue: revenueAuto + revenueManual, revenueAuto, revenueManual, byKind, expense, net: revenueAuto + revenueManual - expense },
     byCategory: rank(out.map(e => [e.category.name, e.amount])),
-    byEvidence: rank(out.map(e => [EVIDENCE_LABEL[e.evidence], e.amount])),
     byMethod,
     days: [...days.values()].sort((a, b) => b.date.localeCompare(a.date)),
   }
@@ -105,7 +98,6 @@ export function summarizeMonth({ month, entries, auto, prepaid, prepaidOpen }: {
 export type MonthSummary = ReturnType<typeof summarizeMonth>
 
 const METHODS: Method[] = ['card', 'cash', 'transfer']
-const EVIDENCES: Evidence[] = ['card', 'cash_receipt', 'tax_invoice', 'none', 'unknown']
 
 /** 직접 입력 검증 — 오류 메시지로 throw */
 export function validateEntry(input: Record<string, unknown>, categories: { id: number; io: Io; name: string }[]) {
@@ -120,12 +112,10 @@ export function validateEntry(input: Record<string, unknown>, categories: { id: 
   if (!category || category.io !== io) throw new Error('항목을 다시 선택하세요')
   const method = input.method ?? null
   if (method !== null && !METHODS.includes(method as Method)) throw new Error('결제수단이 올바르지 않습니다')
-  const evidence = input.evidence ?? 'unknown'
-  if (!EVIDENCES.includes(evidence as Evidence)) throw new Error('증빙 종류가 올바르지 않습니다')
   const text = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, 200) : null)
   const excluded = input.excluded === true
   return {
-    entry_date: date, io, amount, category_id: category.id, method: method as Method | null, evidence: evidence as Evidence,
-    vendor: text(input.vendor), memo: text(input.memo), excluded, exclude_reason: excluded ? text(input.exclude_reason) : null,
+    entry_date: date, io, amount, category_id: category.id, method: method as Method | null,
+    memo: text(input.memo), excluded, exclude_reason: excluded ? text(input.exclude_reason) : null,
   }
 }
