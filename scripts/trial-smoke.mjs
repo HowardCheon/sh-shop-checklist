@@ -90,6 +90,7 @@ try {
   // 고객 삭제해도 패키지 기록은 남음 (customer_id null), 결제 직접 취소는 계속 차단
   // 고객을 지우면 결제의 고객 연결이 끊기므로, 지우기 전에 이 고객의 결제 id 를 모두 기억해 두었다가 정리
   const cidPayIds = (await sql(`select id from sh_shop_payments where customer_id = ${cid}`)).map(x => x.id)
+  const cidLedgerIds = (await sql(`select id from sh_shop_prepaid_ledger where customer_id = ${cid}`)).map(x => x.id)
   r = await call('DELETE', `/api/customers/${cid}`)
   const kept = await sql(`select customer_id, status from sh_shop_trial_packages where id = ${pkg3.id}`)
   check('고객 삭제 후 패키지 기록 유지', r.status === 200 && kept[0]?.customer_id === null && kept[0]?.status === 'active', [r, kept])
@@ -99,6 +100,7 @@ try {
   const ids = [pkg, pkg2, pkg3].map(x => x.id).join(',')
   const payIds = [...new Set([...[pkg, pkg2, pkg3].map(x => x.payment_id), ...cidPayIds])].filter(Boolean).join(',')
   await sql(`delete from sh_shop_trial_packages where id in (${ids}); delete from sh_shop_payments where id in (${payIds}) and customer_id is null`)
+  if (cidLedgerIds.length) await sql(`delete from sh_shop_prepaid_ledger where id in (${cidLedgerIds.join(',')}) and customer_id is null`)
 
   // anon 키 차단
   let a = await anon('rpc/sh_shop_trial_use', { method: 'POST', body: JSON.stringify({ p_package_id: pkg.id, p_kind: 'basic', p_care_name: null, p_memo: null }) })
