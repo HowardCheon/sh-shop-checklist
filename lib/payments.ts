@@ -24,6 +24,10 @@ const RPC_ERRORS: Record<string, [number, string]> = {
   sh_shop_trial_packages_active_uq: [409, '이미 첫체험 패키지가 등록된 고객입니다'], // 동시 등록이 유니크 인덱스에 걸린 경우
   BELOW_PREPAID: [409, '선불로 결제된 금액보다 낮출 수 없습니다. 결제(또는 등록)를 취소한 뒤 다시 처리하세요'],
   TRIAL_PAYMENT: [409, '첫체험 패키지 결제입니다. 첫체험 카드에서 등록 취소로 처리하세요'],
+  MEMO_REQUIRED: [400, '사유를 입력하세요'],
+  SELF_REFERRAL: [400, '자기 자신을 소개자로 지정할 수 없습니다'],
+  REFERRER_NOT_FOUND: [404, '소개자 고객을 찾을 수 없습니다'],
+  REFERRAL_LOCKED: [409, '이미 소개 보너스가 지급되어 소개자를 바꿀 수 없습니다'],
 }
 
 export class PaymentError extends Error {
@@ -75,6 +79,19 @@ export async function charge(customerId: number, amount: number, bonus: number, 
   await recordCustomerHistory(customerId, {
     action: 'prepaid_charged',
     description: `선불 충전 ${won(amount)}${bonus ? ` + 보너스 ${won(bonus)}` : ''}${memo ? ` (${memo})` : ''}`,
+    new_value: { prepaid_cash: customer.prepaid_cash, prepaid_bonus: customer.prepaid_bonus },
+  })
+  return customer
+}
+
+/** 보너스 수동 추가 (사유 필수, 매출 아님) */
+export async function grantBonus(customerId: number, amount: number, memo: string) {
+  const customer = await rpc<{ id: number; prepaid_cash: number; prepaid_bonus: number }>('sh_shop_bonus_grant', {
+    p_customer_id: customerId, p_amount: amount, p_memo: memo,
+  })
+  await recordCustomerHistory(customerId, {
+    action: 'bonus_granted',
+    description: `보너스 추가 ${won(amount)} (${memo.trim()})`,
     new_value: { prepaid_cash: customer.prepaid_cash, prepaid_bonus: customer.prepaid_bonus },
   })
   return customer

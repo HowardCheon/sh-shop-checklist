@@ -19,7 +19,9 @@ export type EntryRow = {
   excluded: boolean
   exclude_reason: string | null
 }
-export type PrepaidRow = { at: string; type: 'charge' | 'use' | 'use_cancel' | 'refund'; cash: number; bonus: number }
+export type PrepaidRow = { at: string; type: 'charge' | 'use' | 'use_cancel' | 'refund' | 'referral' | 'referral_revoke' | 'bonus_grant'; cash: number; bonus: number }
+/** 보너스만 지급·회수하는 원장 타입 (소개 적립·회수, 수동 추가) */
+const GRANT_TYPES: PrepaidRow['type'][] = ['referral', 'referral_revoke', 'bonus_grant']
 export type DayItem = { type: 'auto'; row: AutoRow } | { type: 'entry'; row: EntryRow }
 export type Day = { date: string; total: number; items: DayItem[] }
 
@@ -44,16 +46,20 @@ export function summarizeMonth({ month, entries, auto, prepaid, prepaidOpen }: {
 
   // 선불 충전 현황 (실제/보너스)
   const zero = (): Money => ({ cash: 0, bonus: 0 })
-  const open = prepaidOpen ? { ...prepaidOpen } : zero(), charge = zero(), use = zero(), refund = zero()
+  const open = prepaidOpen ? { ...prepaidOpen } : zero(), charge = zero(), grant = zero(), use = zero(), refund = zero()
   for (const p of prepaid) {
     const d = kstDateOf(p.at)
     if (d.slice(0, 7) < month) { open.cash += p.cash; open.bonus += p.bonus; continue }
     if (!inMonth(d)) continue
     if (p.type === 'charge') { charge.cash += p.cash; charge.bonus += p.bonus }
+    else if (GRANT_TYPES.includes(p.type)) { grant.cash += p.cash; grant.bonus += p.bonus }
     else if (p.type === 'refund') { refund.cash -= p.cash; refund.bonus -= p.bonus }
     else { use.cash -= p.cash; use.bonus -= p.bonus } // use(음수) + use_cancel(양수) 순사용
   }
-  const close = { cash: open.cash + charge.cash - use.cash - refund.cash, bonus: open.bonus + charge.bonus - use.bonus - refund.bonus }
+  const close = {
+    cash: open.cash + charge.cash + grant.cash - use.cash - refund.cash,
+    bonus: open.bonus + charge.bonus + grant.bonus - use.bonus - refund.bonus,
+  }
 
   // 손익
   const revenueAuto = monthAuto.reduce((s, a) => s + a.amount, 0)
@@ -87,7 +93,7 @@ export function summarizeMonth({ month, entries, auto, prepaid, prepaidOpen }: {
   }
 
   return {
-    prepaid: { open, charge, use, refund, close },
+    prepaid: { open, charge, grant, use, refund, close },
     pnl: { revenue: revenueAuto + revenueManual, revenueAuto, revenueManual, byKind, expense, net: revenueAuto + revenueManual - expense },
     byCategory: rank(out.map(e => [e.category.name, e.amount])),
     byMethod,

@@ -4,15 +4,20 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import BrandHeader, { PageTitle } from '@/components/BrandHeader'
 import { calcStats, fmtDate, type Customer } from './customer-utils'
+import ReferrerPicker from './ReferrerPicker'
 
 const FAB = 'linear-gradient(135deg, #bc7659, #cb9175)'
 
 /* ── 고객 추가 폼 ── */
-function CustomerForm({ onSave, onCancel }: {
-  onSave: (form: { name: string; phone: string; memo: string }) => void
+type NewCustomer = { name: string; phone: string; memo: string; referred_by: number | null }
+
+function CustomerForm({ customers, onSave, onCancel }: {
+  customers: Customer[]
+  onSave: (form: NewCustomer) => void
   onCancel: () => void
 }) {
   const [form, setForm] = useState({ name: '', phone: '', memo: '' })
+  const [referrer, setReferrer] = useState<Pick<Customer, 'id' | 'name' | 'phone'> | null>(null)
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm(f => ({ ...f, [k]: e.target.value }))
   const inp = "w-full text-sm rounded-xl border border-gray-200 px-3 py-2.5 outline-none bg-gray-50 focus:bg-white focus:border-brand-300 transition-colors"
@@ -36,9 +41,13 @@ function CustomerForm({ onSave, onCancel }: {
           <label className={lbl}>메모</label>
           <textarea className={inp} rows={2} placeholder="특이사항..." value={form.memo} onChange={set('memo')} />
         </div>
+        <div>
+          <label className={lbl}>소개자 <span className="text-gray-400">(선택)</span></label>
+          <ReferrerPicker customers={customers} value={referrer} onChange={setReferrer} inputClass={inp} />
+        </div>
         <div className="flex gap-2 pt-1">
           <button onClick={onCancel} className="flex-1 py-2.5 rounded-xl text-sm font-600 text-gray-500 bg-gray-100">취소</button>
-          <button onClick={() => { if (form.name.trim()) onSave(form) }} disabled={!form.name.trim()} className="flex-1 py-2.5 rounded-xl text-sm font-700 text-white disabled:opacity-40" style={{ background: FAB }}>
+          <button onClick={() => { if (form.name.trim()) onSave({ ...form, referred_by: referrer?.id ?? null }) }} disabled={!form.name.trim()} className="flex-1 py-2.5 rounded-xl text-sm font-700 text-white disabled:opacity-40" style={{ background: FAB }}>
             저장
           </button>
         </div>
@@ -60,7 +69,7 @@ export default function CustomersClient({ initialCustomers }: { initialCustomers
   useEffect(() => { setCustomers(initialCustomers) }, [initialCustomers])
 
   /* 낙관적 추가 */
-  const handleAdd = (form: { name: string; phone: string; memo: string }) => {
+  const handleAdd = (form: NewCustomer) => {
     const tempId = -Date.now()
     const optimistic: Customer = { id: tempId, name: form.name, phone: form.phone || null, memo: form.memo || null, created_at: new Date().toISOString(), updated_at: new Date().toISOString(), reservations: [] }
     setCustomers(prev => [...prev, optimistic])
@@ -150,7 +159,7 @@ export default function CustomersClient({ initialCustomers }: { initialCustomers
         <button onClick={() => setShowForm(true)} className="fixed right-5 bottom-14 w-14 h-14 rounded-full shadow-lg flex items-center justify-center text-white text-2xl transition-transform active:scale-90 z-30" style={{ background: FAB }}>+</button>
       )}
 
-      {showForm && <CustomerForm onSave={handleAdd} onCancel={() => setShowForm(false)} />}
+      {showForm && <CustomerForm customers={customers} onSave={handleAdd} onCancel={() => setShowForm(false)} />}
 
     </div>
   )

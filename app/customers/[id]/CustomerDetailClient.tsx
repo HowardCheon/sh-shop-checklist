@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import PrepaidPanel from './PrepaidPanel'
 import TrialPanel from './TrialPanel'
+import ReferralPanel from './ReferralPanel'
 import ReservationForm, { EMPTY_FORM, saveReservation, type Product, type PaymentMethod } from '../../reservations/ReservationForm'
 import { isoToKst } from '@/lib/booking/time'
 import { calcStats, fmtDate, fmtTime, fmtPrice, STATUS_LABEL, STATUS_COLOR, STATUS_BG, type Customer, type CustomerHistory, type Reservation } from '../customer-utils'
@@ -30,6 +31,7 @@ export default function CustomerDetailClient({ initialCustomer, initialHistory, 
   const [trialKey, setTrialKey] = useState(0)
   const onTrialChanged = useCallback(() => setPrepaidKey(k => k + 1), [])
   const onPrepaidChanged = useCallback(() => setTrialKey(k => k + 1), [])
+  const onReferralChanged = useCallback(() => setPrepaidKey(k => k + 1), []) // 고객 이력 갱신
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm(f => ({ ...f, [k]: e.target.value }))
@@ -102,6 +104,7 @@ export default function CustomerDetailClient({ initialCustomer, initialHistory, 
 
         <PrepaidPanel customerId={customer.id} initialCash={customer.prepaid_cash ?? 0} initialBonus={customer.prepaid_bonus ?? 0} onHistory={onHistory} refreshKey={prepaidKey} onChanged={onPrepaidChanged} />
         <TrialPanel customerId={customer.id} refreshKey={trialKey} onChanged={onTrialChanged} />
+        <ReferralPanel customerId={customer.id} refreshKey={prepaidKey} onChanged={onReferralChanged} />
 
         {stats.lastVisit && <p className="text-xs text-gray-400 mb-3">마지막 방문: {fmtDate(stats.lastVisit)}</p>}
 

@@ -34,6 +34,22 @@ describe('선불 충전 현황', () => {
   })
 })
 
+describe('보너스 지급 (소개 적립·회수, 수동 추가)', () => {
+  it('충전·사용과 분리해 보너스 지급 행으로, 월말 잔액에 반영', () => {
+    const s = summarizeMonth({
+      month: '2026-10', entries: [], auto: [], prepaidOpen: { cash: 0, bonus: 0 },
+      prepaid: [
+        { at: '2026-10-10T03:00:00Z', type: 'referral', cash: 0, bonus: 12000 },
+        { at: '2026-10-10T04:00:00Z', type: 'referral_revoke', cash: 0, bonus: -2000 },
+        { at: '2026-10-10T05:00:00Z', type: 'bonus_grant', cash: 0, bonus: 5000 },
+      ],
+    })
+    expect(s.prepaid.grant).toEqual({ cash: 0, bonus: 15000 })
+    expect(s.prepaid.use).toEqual({ cash: 0, bonus: 0 })
+    expect(s.prepaid.close).toEqual({ cash: 0, bonus: 15000 })
+  })
+})
+
 describe('선불 월초 잔액을 DB 합계로 받는 경우 (행 수 상한 대비)', () => {
   it('prepaidOpen + 그 달 기록만으로 계산', () => {
     const s = summarizeMonth({
