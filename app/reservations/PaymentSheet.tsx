@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { splitDeduction } from '@/lib/booking/prepaid'
 import { SPECIAL_CARES, defaultTrialChoice, kstToday, trialStatus, type TrialKind, type TrialPackageRow } from '@/lib/booking/trial'
+import { inReferralWindow, referralReward } from '@/lib/referral'
 
 type Method = 'card' | 'cash' | 'transfer'
 const METHODS: { value: Method; label: string }[] = [
@@ -53,6 +54,15 @@ export default function PaymentSheet({ reservation, onDone, onCancel }: {
       .then(d => { if (d?.package) setTrialPkg(d.package) })
   }, [reservation.customer_id])
 
+  // 소개자 — 적용 기간이면 결제 총액의 10% 적립 안내
+  const [referral, setReferral] = useState<{ referrer: { name: string } | null; window: { start: string } | null } | null>(null)
+  useEffect(() => {
+    if (!reservation.customer_id) return
+    fetch(`/api/customers/${reservation.customer_id}/referral`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.referrer) setReferral(d) })
+  }, [reservation.customer_id])
+
   const trialSt = trialPkg ? trialStatus(trialPkg, kstToday()) : null
   const trialAvailable = !!trialSt && !trialSt.done
 
@@ -77,6 +87,7 @@ export default function PaymentSheet({ reservation, onDone, onCancel }: {
   const value = Number(amount) || 0
   const split = usePrepaid && balance ? splitDeduction(value, balance.cash, balance.bonus) : { cash: 0, bonus: 0, other: value }
   const hasBalance = !!balance && balance.cash + balance.bonus > 0
+  const referralBonus = referral?.referrer && inReferralWindow(referral.window?.start ?? null, kstToday()) ? referralReward(value) : 0
 
   const submit = async () => {
     if (amount === '' || value < 0) { setErr('결제 금액을 입력하세요'); return }
@@ -180,6 +191,10 @@ export default function PaymentSheet({ reservation, onDone, onCancel }: {
               ))}
             </div>
           </div>
+        )}
+
+        {referralBonus > 0 && referral?.referrer && (
+          <p className="text-[11px] text-brand-600 bg-brand-50/60 rounded-lg px-3 py-2">🤝 소개자 {referral.referrer.name}님께 소개 보너스 {won(referralBonus)} 적립</p>
         )}
 
         <div>

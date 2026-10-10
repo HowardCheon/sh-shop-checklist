@@ -8,7 +8,10 @@ const CHARGE_OPTIONS = [
   { amount: 1000000, label: '100만', bonus: 100000 },
   { amount: 2000000, label: '200만', bonus: 250000 },
 ]
-const LEDGER_LABEL: Record<string, string> = { charge: '충전', use: '사용', use_cancel: '사용 취소', refund: '환불' }
+const LEDGER_LABEL: Record<string, string> = {
+  charge: '충전', use: '사용', use_cancel: '사용 취소', refund: '환불',
+  referral: '소개 보너스', referral_revoke: '소개 회수', bonus_grant: '보너스 추가',
+}
 const METHOD_LABEL: Record<string, string> = { card: '카드', cash: '현금', transfer: '계좌이체' }
 
 interface LedgerRow {
@@ -54,6 +57,7 @@ export default function PrepaidPanel({ customerId, initialCash, initialBonus, on
   const [err, setErr] = useState('')
   const [useForm, setUseForm] = useState<{ amount: string; memo: string } | null>(null)
   const [customForm, setCustomForm] = useState<{ amount: string; bonus: string } | null>(null)
+  const [bonusForm, setBonusForm] = useState<{ amount: string; memo: string } | null>(null)
   const [showLedger, setShowLedger] = useState(false)
 
   const reload = useCallback(async () => {
@@ -98,6 +102,15 @@ export default function PrepaidPanel({ customerId, initialCash, initialBonus, on
     if (!confirm(`${fmtPrice(amount)} 충전${bonus ? ` (보너스 ${fmtPrice(bonus)})` : ''}을 기록할까요?`)) return
     const ok = await post('custom', `/api/customers/${customerId}/charge`, { custom: true, amount, bonus })
     if (ok) setCustomForm(null)
+  }
+
+  const handleBonus = async () => {
+    if (!bonusForm) return
+    const amount = Number(bonusForm.amount)
+    if (!confirm(`보너스 ${fmtPrice(amount)}을 추가할까요?
+사유: ${bonusForm.memo.trim()}`)) return
+    const ok = await post('bonus', `/api/customers/${customerId}/bonus`, { amount, memo: bonusForm.memo })
+    if (ok) setBonusForm(null)
   }
 
   const handleUse = async () => {
@@ -153,11 +166,24 @@ export default function PrepaidPanel({ customerId, initialCash, initialBonus, on
         </div>
       )}
 
-      {total > 0 && (
-        <div className="flex gap-1.5 mt-1.5">
-          <button onClick={() => setUseForm(f => f ? null : { amount: '', memo: '' })} disabled={busy !== null} className="flex-1 py-1.5 rounded-lg text-xs font-600 text-gray-600 bg-gray-50 border border-gray-200 disabled:opacity-40">직접 차감</button>
-          <button onClick={handleRefund} disabled={busy !== null} className="flex-1 py-1.5 rounded-lg text-xs font-600 text-red-400 bg-red-50/50 border border-red-100 disabled:opacity-40">
-            {busy === 'refund' ? '...' : '환불'}
+      <div className="flex gap-1.5 mt-1.5">
+        <button onClick={() => setBonusForm(f => f ? null : { amount: '', memo: '' })} disabled={busy !== null} className="flex-1 py-1.5 rounded-lg text-xs font-600 text-brand-600 bg-white border border-brand-100 disabled:opacity-40">보너스 추가</button>
+        {total > 0 && (
+          <>
+            <button onClick={() => setUseForm(f => f ? null : { amount: '', memo: '' })} disabled={busy !== null} className="flex-1 py-1.5 rounded-lg text-xs font-600 text-gray-600 bg-gray-50 border border-gray-200 disabled:opacity-40">직접 차감</button>
+            <button onClick={handleRefund} disabled={busy !== null} className="flex-1 py-1.5 rounded-lg text-xs font-600 text-red-400 bg-red-50/50 border border-red-100 disabled:opacity-40">
+              {busy === 'refund' ? '...' : '환불'}
+            </button>
+          </>
+        )}
+      </div>
+
+      {bonusForm && (
+        <div className="mt-2 space-y-1.5 rounded-xl bg-gray-50 p-2">
+          <input type="number" inputMode="numeric" className={inp} placeholder="보너스 금액 (원)" value={bonusForm.amount} onChange={e => setBonusForm({ ...bonusForm, amount: e.target.value })} />
+          <input className={inp} placeholder="사유 (예: 리뷰 이벤트)" value={bonusForm.memo} onChange={e => setBonusForm({ ...bonusForm, memo: e.target.value })} />
+          <button onClick={handleBonus} disabled={busy !== null || !(Number(bonusForm.amount) >= 1) || !bonusForm.memo.trim()} className="w-full py-2 rounded-lg text-xs font-700 text-white disabled:opacity-40" style={{ background: '#bc7659' }}>
+            {busy === 'bonus' ? '처리 중...' : '보너스 추가 (매출 아님)'}
           </button>
         </div>
       )}
@@ -209,7 +235,10 @@ export default function PrepaidPanel({ customerId, initialCash, initialBonus, on
                   <div key={l.id} className="flex gap-2 text-[11px] text-gray-600">
                     <span className="shrink-0 text-gray-300">{fmtDate(l.created_at)} {fmtTime(l.created_at)}</span>
                     <span className="shrink-0 font-600">{LEDGER_LABEL[l.type] ?? l.type}</span>
-                    <span className="flex-1">{signed(l.cash_amount)} / {signed(l.bonus_amount)}</span>
+                    <span className="flex-1">
+                      {signed(l.cash_amount)} / {signed(l.bonus_amount)}
+                      {l.memo && <span className="block text-[10px] text-gray-400">{l.memo}</span>}
+                    </span>
                     <span className="shrink-0 text-gray-400">잔액 {(l.cash_balance_after + l.bonus_balance_after).toLocaleString()}</span>
                   </div>
                 ))}

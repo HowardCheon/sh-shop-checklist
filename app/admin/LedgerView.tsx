@@ -70,6 +70,7 @@ export default function LedgerView() {
   const prepaidRows = s ? [
     { label: '월초 잔액', v: s.prepaid.open, sign: '' },
     { label: '충전', v: s.prepaid.charge, sign: '+' },
+    ...(s.prepaid.grant.bonus !== 0 ? [{ label: '보너스 지급', v: s.prepaid.grant, sign: '+' }] : []),
     { label: '사용', v: s.prepaid.use, sign: '−' },
     { label: '환불·소멸', v: s.prepaid.refund, sign: '−' },
     { label: '월말 잔액', v: s.prepaid.close, sign: '' },
