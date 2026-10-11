@@ -166,7 +166,7 @@ export default function LedgerView() {
               <div key={d.date} className="bg-white/85 rounded-2xl border border-brand-100 px-3 py-2">
                 <div className="flex justify-between text-xs font-700 text-gray-500 mb-1">
                   <span>{dayLabel(d.date)}</span>
-                  <span className={d.total < 0 ? 'text-red-500' : 'text-emerald-600'}>{signed(d.total)}</span>
+                  <span className={`text-[11px] ${d.total < 0 ? 'text-red-700' : 'text-emerald-800'}`}>{signed(d.total)}</span>
                 </div>
                 <ul className="divide-y divide-brand-50">
                   {d.items.map(item => item.type === 'auto' ? (
