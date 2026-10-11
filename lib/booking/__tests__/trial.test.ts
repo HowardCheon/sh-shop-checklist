@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { defaultTrialChoice, kstToday, trialBadge, trialPackage, trialStatus, validateUse } from '../trial'
+import { defaultTrialChoice, isTrialUnpaid, kstToday, trialBadge, trialPackage, trialStatus, validateUse } from '../trial'
 
 const pkg = { basic_total: 1, special_total: 3, basic_used: 0, special_used: 1, expires_on: '2026-11-06' }
 
@@ -49,13 +49,27 @@ describe('kstToday', () => {
 
 describe('trialBadge', () => {
   it('남은 횟수 표시', () => {
-    expect(trialBadge({ basic_total: 1, special_total: 3, basic_used: 0, special_used: 1, expires_on: '2026-12-01' }, '2026-10-06')).toEqual({ label: '첫체험 B1·S2', expired: false })
+    expect(trialBadge({ basic_total: 1, special_total: 3, basic_used: 0, special_used: 1, expires_on: '2026-12-01' }, '2026-10-06')).toEqual({ label: '첫체험 B1·S2', expired: false, unpaid: false })
   })
   it('만료 표시', () => {
-    expect(trialBadge({ basic_total: 1, special_total: 1, basic_used: 1, special_used: 0, expires_on: '2026-10-01' }, '2026-10-06')).toEqual({ label: '첫체험 B0·S1', expired: true })
+    expect(trialBadge({ basic_total: 1, special_total: 1, basic_used: 1, special_used: 0, expires_on: '2026-10-01' }, '2026-10-06')).toEqual({ label: '첫체험 B0·S1', expired: true, unpaid: false })
   })
   it('남은 횟수 없으면 null', () => {
     expect(trialBadge({ basic_total: 1, special_total: 1, basic_used: 1, special_used: 1, expires_on: '2026-12-01' }, '2026-10-06')).toBeNull()
+  })
+  it('미결제 표시 — 횟수를 다 써도 미결제면 남김', () => {
+    const base = { basic_total: 1, special_total: 1, basic_used: 0, special_used: 1, expires_on: '2026-12-01', price: 99000, payment_id: null }
+    expect(trialBadge(base, '2026-10-06')).toEqual({ label: '첫체험 B1·S0', expired: false, unpaid: true })
+    expect(trialBadge({ ...base, basic_used: 1 }, '2026-10-06')).toEqual({ label: '첫체험 미결제', expired: false, unpaid: true })
+    expect(trialBadge({ ...base, basic_used: 1, payment_id: 7 }, '2026-10-06')).toBeNull()
+  })
+})
+
+describe('isTrialUnpaid', () => {
+  it('결제 연결 없고 금액 있을 때만', () => {
+    expect(isTrialUnpaid({ price: 99000, payment_id: null })).toBe(true)
+    expect(isTrialUnpaid({ price: 99000, payment_id: 3 })).toBe(false)
+    expect(isTrialUnpaid({ price: 0, payment_id: null })).toBe(false)
   })
 })
 

@@ -23,7 +23,10 @@ const RPC_ERRORS: Record<string, [number, string]> = {
   INVALID_TRIAL_USE: [400, '사용 종류가 올바르지 않습니다'],
   sh_shop_trial_packages_active_uq: [409, '이미 첫체험 패키지가 등록된 고객입니다'], // 동시 등록이 유니크 인덱스에 걸린 경우
   BELOW_PREPAID: [409, '선불로 결제된 금액보다 낮출 수 없습니다. 결제(또는 등록)를 취소한 뒤 다시 처리하세요'],
-  TRIAL_PAYMENT: [409, '첫체험 패키지 결제입니다. 첫체험 카드에서 등록 취소로 처리하세요'],
+  TRIAL_PAYMENT: [409, '첫체험 패키지 결제입니다. 고객 상세 첫체험 카드에서 결제 취소(미결제로) 또는 등록 취소로 처리하세요'],
+  ALREADY_PAID: [409, '이미 결제된 첫체험권입니다'],
+  NOT_PAID: [409, '결제되지 않은 첫체험권입니다'],
+  NOTHING_TO_PAY: [400, '결제할 금액이 없습니다 (0원 첫체험권)'],
   MEMO_REQUIRED: [400, '사유를 입력하세요'],
   SELF_REFERRAL: [400, '자기 자신을 소개자로 지정할 수 없습니다'],
   REFERRER_NOT_FOUND: [404, '소개자 고객을 찾을 수 없습니다'],

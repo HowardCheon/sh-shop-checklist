@@ -8,16 +8,43 @@ const pkgLabel = (p: TrialPackageRow) => TRIAL_PACKAGES[p.package_code as TrialC
 const useLabel = (u: TrialUseRow) => (u.kind === 'basic' ? '베이직' : `스페셜 - ${u.care_name}`)
 const remain = (p: TrialPackageRow) => `남은 베이직 ${p.basic_total - p.basic_used} · 스페셜 ${p.special_total - p.special_used}`
 
-export async function registerTrial(customerId: number, code: TrialCode, usePrepaid: boolean, otherMethod: PaymentMethod | null, price?: number) {
+/** 등록 — payLater 면 결제 없이 패키지만 (미결제, 나중에 payTrial) */
+export async function registerTrial(customerId: number, code: TrialCode, usePrepaid: boolean, otherMethod: PaymentMethod | null, price?: number, payLater = false) {
   const def = { ...TRIAL_PACKAGES[code], ...(price !== undefined ? { price } : {}) }
-  const result = await rpc<{ package: TrialPackageRow; payment: Payment }>('sh_shop_trial_register', {
+  const result = await rpc<{ package: TrialPackageRow; payment: Payment | null }>('sh_shop_trial_register', {
     p_customer_id: customerId, p_code: code, p_price: def.price, p_basic: def.basic, p_special: def.special,
-    p_months: def.months, p_use_prepaid: usePrepaid, p_other_method: otherMethod, p_memo: `${def.label} 패키지`,
+    p_months: def.months, p_use_prepaid: usePrepaid, p_other_method: otherMethod, p_memo: `${def.label} 패키지`, p_pay_now: !payLater,
   })
   await recordCustomerHistory(customerId, {
     action: 'trial_registered',
-    description: `${def.label} 등록 · ${describePayment(result.payment)} · ${result.package.expires_on}까지`,
+    description: `${def.label} 등록 · ${result.payment ? describePayment(result.payment) : `${def.price.toLocaleString()}원 미결제`} · ${result.package.expires_on}까지`,
     new_value: result,
+  })
+  return result
+}
+
+/** 미결제 첫체험권 결제 (예약과 연결하지 않음 — 가계부 '첫체험' 매출) */
+export async function payTrial(packageId: number, usePrepaid: boolean, otherMethod: PaymentMethod | null) {
+  const { data: pkg } = await supabase.from('sh_shop_trial_packages').select('package_code').eq('id', packageId).maybeSingle()
+  const label = pkg ? (TRIAL_PACKAGES[pkg.package_code as TrialCode]?.label ?? pkg.package_code) : '첫체험'
+  const result = await rpc<{ package: TrialPackageRow; payment: Payment }>('sh_shop_trial_pay', {
+    p_package_id: packageId, p_use_prepaid: usePrepaid, p_other_method: otherMethod, p_memo: `${label} 패키지`,
+  })
+  await recordCustomerHistory(result.package.customer_id, {
+    action: 'trial_paid',
+    description: `${pkgLabel(result.package)} 결제 · ${describePayment(result.payment)}`,
+    new_value: result,
+  })
+  return result
+}
+
+/** 첫체험권 결제 취소 → 미결제로 (등록·사용 내역은 유지) */
+export async function unpayTrial(packageId: number) {
+  const result = await rpc<{ package: TrialPackageRow; payment: Payment }>('sh_shop_trial_unpay', { p_package_id: packageId })
+  await recordCustomerHistory(result.package.customer_id, {
+    action: 'trial_unpaid',
+    description: `${pkgLabel(result.package)} 결제 취소 (미결제로) — ${describePayment(result.payment)}`,
+    old_value: result,
   })
   return result
 }

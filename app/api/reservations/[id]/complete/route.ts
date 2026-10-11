@@ -3,14 +3,15 @@ import { supabase } from '@/lib/supabase'
 import { BookingError } from '@/lib/booking/errors'
 import { validateUse } from '@/lib/booking/trial'
 import { pay, voidPayment, paymentErrorResponse, describePayment, type PaymentMethod } from '@/lib/payments'
-import { useTrial, cancelTrialUse, trialUseLabel } from '@/lib/trial'
+import { useTrial, cancelTrialUse, trialUseLabel, payTrial, unpayTrial } from '@/lib/trial'
 
 const METHODS: PaymentMethod[] = ['card', 'cash', 'transfer']
 
-/* 시술 완료 + 결제 (+ 첫체험 차감) — { amount, use_prepaid, other_method?, memo?, trial?: { package_id, kind, care_name? } } */
+/* 시술 완료 + 결제 (+ 첫체험 차감) — { amount, use_prepaid, other_method?, memo?, trial?: { package_id, kind, care_name? }, trial_payment?: { package_id } }
+   trial_payment: 미결제 첫체험권을 함께 결제 (시술 결제와 별도 1건, 같은 선불 사용 여부·결제수단) */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const { amount, use_prepaid, other_method, memo, trial } = await req.json()
+  const { amount, use_prepaid, other_method, memo, trial, trial_payment } = await req.json()
 
   const value = Number(amount)
   if (!Number.isInteger(value) || value < 0) return NextResponse.json({ error: '결제 금액을 확인하세요' }, { status: 400 })
@@ -35,6 +36,29 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
   }
 
+  // 미결제 첫체험권 함께 결제 — 이 예약 고객의 유효·미결제 패키지여야 함
+  let trialPayPkgId: number | null = null
+  if (trial_payment) {
+    const pkgId = Number(trial_payment.package_id)
+    const { data: pkg } = await supabase.from('sh_shop_trial_packages').select('id, customer_id, status').eq('id', pkgId).maybeSingle()
+    if (!pkg || pkg.status !== 'active' || !existing.customer_id || pkg.customer_id !== existing.customer_id) {
+      return NextResponse.json({ error: '이 고객의 첫체험권이 아닙니다' }, { status: 400 })
+    }
+    trialPayPkgId = pkg.id
+  }
+  let trialPaid: Awaited<ReturnType<typeof payTrial>> | null = null
+  const rollbackTrialPay = async () => {
+    if (trialPaid) await unpayTrial(trialPaid.package.id).catch(err => console.error('첫체험 결제 롤백 실패', err))
+  }
+  if (trialPayPkgId) {
+    try {
+      trialPaid = await payTrial(trialPayPkgId, !!use_prepaid, other_method ?? null)
+    } catch (e) {
+      const { body, status } = paymentErrorResponse(e)
+      return NextResponse.json(body, { status })
+    }
+  }
+
   let payment
   try {
     payment = await pay({
@@ -46,6 +70,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       memo: memo?.trim() || null,
     })
   } catch (e) {
+    await rollbackTrialPay()
     const { body, status } = paymentErrorResponse(e)
     return NextResponse.json(body, { status })
   }
@@ -57,6 +82,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       trialUse = (await useTrial(trialReq.packageId, trialReq.kind, trialReq.careName, null, existing.id)).use
     } catch (e) {
       await voidPayment(payment.id).catch(err => console.error('결제 롤백 실패', err))
+      await rollbackTrialPay()
       const { body, status } = paymentErrorResponse(e)
       return NextResponse.json(body, { status })
     }
@@ -73,16 +99,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     // 상태 변경 실패 시 첫체험 차감·결제 되돌림
     if (trialUse) await cancelTrialUse(trialUse.id).catch(err => console.error('첫체험 롤백 실패', err))
     await voidPayment(payment.id).catch(err => console.error('결제 롤백 실패', err))
+    await rollbackTrialPay()
     return NextResponse.json({ error: '완료 처리에 실패했습니다' }, { status: error ? 500 : 409 })
   }
 
   await supabase.from('sh_shop_reservation_history').insert({
     reservation_id: data.id,
     action: 'completed',
-    description: `시술 완료 · ${describePayment(payment)}${trialUse ? ` · 첫체험 ${trialUseLabel(trialUse)} 차감` : ''}`,
+    description: `시술 완료 · ${describePayment(payment)}${trialUse ? ` · 첫체험 ${trialUseLabel(trialUse)} 차감` : ''}${trialPaid ? ` · 첫체험권 결제 ${describePayment(trialPaid.payment)}` : ''}`,
     old_value: existing,
     new_value: data,
   })
 
-  return NextResponse.json({ ...data, payment, trial_use: trialUse })
+  return NextResponse.json({ ...data, payment, trial_use: trialUse, trial_payment: trialPaid?.payment ?? null })
 }

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { splitDeduction } from '@/lib/booking/prepaid'
-import { TRIAL_PACKAGES, SPECIAL_CARES, kstToday, trialStatus, type TrialCode, type TrialPackageRow, type TrialUseRow } from '@/lib/booking/trial'
+import { TRIAL_PACKAGES, SPECIAL_CARES, isTrialUnpaid, kstToday, trialStatus, type TrialCode, type TrialPackageRow, type TrialUseRow } from '@/lib/booking/trial'
 import { fmtDate, fmtPrice } from '../customer-utils'
 
 type Method = 'card' | 'cash' | 'transfer'
@@ -15,7 +15,9 @@ const CODES = Object.keys(TRIAL_PACKAGES) as TrialCode[]
 
 const dots = (used: number, total: number) => '●'.repeat(used) + '○'.repeat(total - used)
 
-/* ── 첫체험 패키지: 등록(결제) / 사용 / 사용 취소 / 등록 취소 ── */
+type PayInput = { usePrepaid: boolean; method: Method }
+
+/* ── 첫체험 패키지: 등록(지금 결제 또는 나중에 결제) / 결제 / 사용 / 사용 취소 / 등록 취소 ── */
 export default function TrialPanel({ customerId, refreshKey, onChanged }: { customerId: number; refreshKey: number; onChanged: () => void }) {
   const [pkg, setPkg] = useState<TrialPackageRow | null>(null)
   const [uses, setUses] = useState<TrialUseRow[]>([])
@@ -23,7 +25,9 @@ export default function TrialPanel({ customerId, refreshKey, onChanged }: { cust
   const [loaded, setLoaded] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
   const [err, setErr] = useState('')
-  const [reg, setReg] = useState<{ code: TrialCode; usePrepaid: boolean; method: Method; price: string; editPrice: boolean } | null>(null)
+  const [reg, setReg] = useState<{ code: TrialCode; payNow: boolean; usePrepaid: boolean; method: Method; price: string; editPrice: boolean } | null>(null)
+  // 미결제 첫체험권 결제
+  const [payForm, setPayForm] = useState<PayInput | null>(null)
   // 등록 후 금액 수정
   const [priceEdit, setPriceEdit] = useState<{ value: string; method: Method | null } | null>(null)
   const [special, setSpecial] = useState<{ care: string; memo: string } | null>(null)
@@ -65,7 +69,7 @@ export default function TrialPanel({ customerId, refreshKey, onChanged }: { cust
   const openRegister = async (code: TrialCode) => {
     if (reg?.code === code) { setReg(null); return }
     await reload() // 선불 잔액 최신화
-    setReg({ code, usePrepaid: false, method: 'card', price: String(TRIAL_PACKAGES[code].price), editPrice: false })
+    setReg({ code, payNow: false, usePrepaid: false, method: 'card', price: String(TRIAL_PACKAGES[code].price), editPrice: false })
   }
 
   if (!loaded) return null
@@ -74,20 +78,50 @@ export default function TrialPanel({ customerId, refreshKey, onChanged }: { cust
   const inp = "w-full text-sm rounded-xl border border-gray-200 px-3 py-2 outline-none bg-white focus:border-brand-300"
   const chip = (on: boolean) => `px-2.5 py-1 rounded-full text-xs font-600 border ${on ? 'bg-brand-500 border-brand-500 text-white' : 'bg-white border-brand-100 text-brand-600'}`
 
+  /** 선불 사용 + 부족분 결제수단 입력 (등록 시 지금 결제 / 미결제 결제하기 공용) */
+  const payFields = (input: PayInput, set: (v: PayInput) => void, price: number) => {
+    const usePrepaid = input.usePrepaid && hasBalance
+    const split = usePrepaid ? splitDeduction(price, balance.cash, balance.bonus) : { cash: 0, bonus: 0, other: price }
+    return (
+      <>
+        {hasBalance && (
+          <label className="flex items-center gap-2 text-xs text-gray-600">
+            <input type="checkbox" checked={input.usePrepaid} onChange={e => set({ ...input, usePrepaid: e.target.checked })} />
+            선불 사용 (잔액 {fmtPrice(balance.cash + balance.bonus)})
+          </label>
+        )}
+        {usePrepaid && <p className="text-[11px] text-gray-500">선불 차감 실제 {fmtPrice(split.cash)} · 보너스 {fmtPrice(split.bonus)}</p>}
+        {split.other > 0 && (
+          <div>
+            <p className="text-[11px] text-gray-500 mb-1">{usePrepaid ? '부족분' : '결제'} {fmtPrice(split.other)} 결제수단</p>
+            <div className="flex gap-1.5">
+              {METHODS.map(m => (
+                <button key={m.value} type="button" onClick={() => set({ ...input, method: m.value })} className={chip(input.method === m.value)}>{m.label}</button>
+              ))}
+            </div>
+          </div>
+        )}
+      </>
+    )
+  }
+  const payBody = (input: PayInput, price: number) => {
+    const usePrepaid = input.usePrepaid && hasBalance
+    const split = usePrepaid ? splitDeduction(price, balance.cash, balance.bonus) : { cash: 0, bonus: 0, other: price }
+    return { use_prepaid: usePrepaid, other_method: split.other > 0 ? input.method : null }
+  }
+
   /* 미등록 — 패키지 선택 → 결제 입력 → 등록 */
   if (!pkg) {
     const def = reg ? TRIAL_PACKAGES[reg.code] : null
-    const usePrepaid = !!reg?.usePrepaid && hasBalance
     const price = reg ? Number(reg.price) : 0
     const priceValid = reg?.price !== '' && Number.isInteger(price) && price >= 0
-    const split = def && usePrepaid ? splitDeduction(price, balance.cash, balance.bonus) : { cash: 0, bonus: 0, other: price }
 
     const handleRegister = async () => {
       if (!reg || !def) return
       if (!priceValid) { setErr('금액을 0원 이상으로 입력하세요'); return }
-      const ok = await post('register', `/api/customers/${customerId}/trial`, {
-        code: reg.code, use_prepaid: usePrepaid, other_method: split.other > 0 ? reg.method : null, price,
-      })
+      const ok = await post('register', `/api/customers/${customerId}/trial`, reg.payNow
+        ? { code: reg.code, price, ...payBody(reg, price) }
+        : { code: reg.code, price, pay_later: true })
       if (ok) setReg(null)
     }
 
@@ -123,27 +157,17 @@ export default function TrialPanel({ customerId, refreshKey, onChanged }: { cust
                 <span className="font-700 text-brand-700 underline decoration-dotted">{priceValid ? fmtPrice(price) : '금액 입력'} ✎</span>
               </button>
             )}
-            {hasBalance && (
-              <label className="flex items-center gap-2 text-xs text-gray-600">
-                <input type="checkbox" checked={reg.usePrepaid} onChange={e => setReg({ ...reg, usePrepaid: e.target.checked })} />
-                선불 사용 (잔액 {fmtPrice(balance.cash + balance.bonus)})
-              </label>
-            )}
-            {usePrepaid && (
-              <p className="text-[11px] text-gray-500">선불 차감 실제 {fmtPrice(split.cash)} · 보너스 {fmtPrice(split.bonus)}</p>
-            )}
-            {split.other > 0 && (
-              <div>
-                <p className="text-[11px] text-gray-500 mb-1">{usePrepaid ? '부족분' : '결제'} {fmtPrice(split.other)} 결제수단</p>
-                <div className="flex gap-1.5">
-                  {METHODS.map(m => (
-                    <button key={m.value} onClick={() => setReg({ ...reg, method: m.value })} className={chip(reg.method === m.value)}>{m.label}</button>
-                  ))}
-                </div>
+            {price > 0 && (
+              <div className="flex gap-1.5">
+                <button type="button" onClick={() => setReg({ ...reg, payNow: false })} className={chip(!reg.payNow)}>나중에 결제</button>
+                <button type="button" onClick={() => setReg({ ...reg, payNow: true })} className={chip(reg.payNow)}>지금 결제</button>
               </div>
             )}
+            {reg.payNow || price === 0
+              ? payFields(reg, v => setReg({ ...reg, ...v }), price)
+              : <p className="text-[11px] text-gray-500">미결제로 등록합니다. 관리 후 시술 완료 결제창이나 이 카드에서 결제하세요.</p>}
             <button onClick={handleRegister} disabled={busy !== null} className="w-full py-2 rounded-lg text-xs font-700 text-white disabled:opacity-40" style={{ background: '#bc7659' }}>
-              {busy === 'register' ? '처리 중...' : `${def.label} 등록 · ${priceValid ? fmtPrice(price) : '-'}`}
+              {busy === 'register' ? '처리 중...' : `${def.label} 등록 · ${priceValid ? fmtPrice(price) : '-'}${reg.payNow || price === 0 ? ' 결제' : ' (미결제)'}`}
             </button>
           </div>
         )}
@@ -156,6 +180,20 @@ export default function TrialPanel({ customerId, refreshKey, onChanged }: { cust
   const st = trialStatus(pkg, kstToday())
   const activeUses = uses.filter(u => u.status === 'used')
   const expiredNote = st.expired ? '만료된 패키지입니다. 그래도 ' : ''
+  const unpaid = isTrialUnpaid(pkg)
+
+  const handlePay = async () => {
+    if (!payForm) return
+    if (!confirm(`${label} ${fmtPrice(pkg.price)}을 결제할까요?`)) return
+    const ok = await post('pay', `/api/trial/${pkg.id}/pay`, payBody(payForm, pkg.price))
+    if (ok) setPayForm(null)
+  }
+
+  const handleUnpay = () => {
+    if (!confirm(`${label} 결제 ${fmtPrice(pkg.price)}를 취소하고 미결제로 되돌릴까요?
+선불로 낸 부분은 잔액으로 복원되고, 등록·사용 내역은 그대로입니다.`)) return
+    post('unpay', `/api/trial/${pkg.id}/unpay`)
+  }
 
   const useBasic = () => {
     if (!confirm(`${expiredNote}베이직 케어 1회를 차감할까요?`)) return
@@ -183,7 +221,7 @@ export default function TrialPanel({ customerId, refreshKey, onChanged }: { cust
   }
 
   const cancelPackage = () => {
-    if (!confirm(`${label} 등록을 취소할까요? 결제 ${fmtPrice(pkg.price)}도 함께 취소됩니다.`)) return
+    if (!confirm(unpaid || !pkg.payment_id ? `${label} 등록을 취소할까요? (결제 내역 없음)` : `${label} 등록을 취소할까요? 결제 ${fmtPrice(pkg.price)}도 함께 취소됩니다.`)) return
     post('cancel', `/api/trial/${pkg.id}/cancel`)
   }
 
@@ -192,11 +230,14 @@ export default function TrialPanel({ customerId, refreshKey, onChanged }: { cust
       {err && <p className="text-xs text-red-500 bg-red-50 rounded-lg px-3 py-2 mb-2">{err}</p>}
       <div className="flex items-center justify-between">
         <p className="text-xs font-700 text-gray-400">첫체험 패키지</p>
+        <span className="flex gap-1">
+        {unpaid && <span className="text-[10px] font-700 px-2 py-0.5 rounded-full bg-amber-500 text-white">미결제</span>}
         {st.done
           ? <span className="text-[10px] font-700 px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">사용 완료</span>
           : st.expired
             ? <span className="text-[10px] font-700 px-2 py-0.5 rounded-full bg-red-500 text-white">기간 만료</span>
             : <span className="text-[10px] font-700 px-2 py-0.5 rounded-full bg-brand-500 text-white">이용 중</span>}
+        </span>
       </div>
       <div className="flex items-baseline justify-between mt-1">
         <p className="font-serif text-xl font-extrabold text-brand-700">
@@ -210,15 +251,38 @@ export default function TrialPanel({ customerId, refreshKey, onChanged }: { cust
         </p>
       </div>
 
+      {unpaid && !payForm && (
+        <button onClick={() => setPayForm({ usePrepaid: false, method: 'card' })} disabled={busy !== null} className="w-full mt-2 py-2 rounded-lg text-xs font-700 text-white disabled:opacity-40" style={{ background: '#d97706' }}>
+          {fmtPrice(pkg.price)} 결제하기
+        </button>
+      )}
+      {unpaid && payForm && (
+        <div className="mt-2 space-y-1.5 rounded-xl bg-amber-50 p-2">
+          {payFields(payForm, setPayForm, pkg.price)}
+          <div className="flex gap-1.5">
+            <button onClick={() => setPayForm(null)} disabled={busy !== null} className="flex-1 py-2 rounded-lg text-xs text-gray-500 bg-white border border-gray-200">닫기</button>
+            <button onClick={handlePay} disabled={busy !== null} className="flex-[2] py-2 rounded-lg text-xs font-700 text-white disabled:opacity-40" style={{ background: '#bc7659' }}>
+              {busy === 'pay' ? '처리 중...' : `${fmtPrice(pkg.price)} 결제`}
+            </button>
+          </div>
+        </div>
+      )}
+
       {priceEdit && (
         <div className="mt-2 space-y-1.5 rounded-xl bg-gray-50 p-2">
           <input type="number" inputMode="numeric" autoFocus className={inp} value={priceEdit.value} onChange={e => setPriceEdit({ ...priceEdit, value: e.target.value })} />
-          <p className="text-[11px] text-gray-500">결제 기록 금액도 함께 바뀌어요. 선불로 낸 부분은 그대로이고, 늘어난 금액은 아래 결제수단으로 기록돼요(선택).</p>
-          <div className="flex gap-1.5">
-            {METHODS.map(m => (
-              <button key={m.value} type="button" onClick={() => setPriceEdit({ ...priceEdit, method: priceEdit.method === m.value ? null : m.value })} className={chip(priceEdit.method === m.value)}>{m.label}</button>
-            ))}
-          </div>
+          {pkg.payment_id ? (
+            <>
+              <p className="text-[11px] text-gray-500">결제 기록 금액도 함께 바뀌어요. 선불로 낸 부분은 그대로이고, 늘어난 금액은 아래 결제수단으로 기록돼요(선택).</p>
+              <div className="flex gap-1.5">
+                {METHODS.map(m => (
+                  <button key={m.value} type="button" onClick={() => setPriceEdit({ ...priceEdit, method: priceEdit.method === m.value ? null : m.value })} className={chip(priceEdit.method === m.value)}>{m.label}</button>
+                ))}
+              </div>
+            </>
+          ) : (
+            <p className="text-[11px] text-gray-500">아직 결제 전이라 금액만 바뀌어요.</p>
+          )}
           <button onClick={savePrice} disabled={busy !== null || !(Number(priceEdit.value) >= 0) || priceEdit.value === ''} className="w-full py-2 rounded-lg text-xs font-700 text-white disabled:opacity-40" style={{ background: '#bc7659' }}>
             {busy === 'price' ? '처리 중...' : `금액을 ${fmtPrice(Number(priceEdit.value) || 0)}으로 수정`}
           </button>
@@ -280,6 +344,12 @@ export default function TrialPanel({ customerId, refreshKey, onChanged }: { cust
             </div>
           ))}
         </div>
+      )}
+
+      {!unpaid && pkg.payment_id && pkg.price > 0 && (
+        <button onClick={handleUnpay} disabled={busy !== null} className="w-full mt-2 text-[11px] text-gray-400 hover:text-red-400">
+          {busy === 'unpay' ? '...' : '결제 취소 (미결제로 되돌리기)'}
+        </button>
       )}
 
       {activeUses.length === 0 && (
