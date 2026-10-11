@@ -182,19 +182,23 @@ export default function LedgerView() {
                     </li>
                   ) : (
                     <li key={`e-${item.row.id}`}>
-                      <button type="button" onClick={() => setEditing(item.row)} className={`w-full text-left py-1.5 flex items-center gap-2 ${item.row.excluded ? 'opacity-50' : ''}`}>
+                      <button type="button" onClick={() => setEditing(item.row)} className="w-full text-left py-1.5 flex items-center gap-2">
                         <span className="text-sm">{item.row.io === 'in' ? '💰' : '🧾'}</span>
                         <div className="flex-1 min-w-0">
-                          <p className={`text-xs text-gray-700 truncate ${item.row.excluded ? 'line-through' : ''}`}>
+                          <p className="text-xs text-gray-700 truncate">
                             {item.row.category.name}{item.row.memo ? ` · ${item.row.memo}` : ''}
                           </p>
                           <p className="text-[10px] text-gray-400">
                             {item.row.method ? METHOD_LABEL[item.row.method] : '수단 없음'}
-                            {item.row.excluded ? ` · 제외(${item.row.exclude_reason ?? '사유 없음'})` : ''}
+                            {item.row.excluded && item.row.exclude_reason ? ` · ${item.row.exclude_reason}` : ''}
                           </p>
                         </div>
-                        <span className={`text-xs font-700 ${item.row.excluded ? 'text-gray-400 line-through' : item.row.io === 'out' ? 'text-red-500' : 'text-emerald-600'}`}>
-                          {item.row.io === 'out' ? '−' : '+'}{won(item.row.amount)}
+                        <span className="text-right shrink-0">
+                          <span className={`block text-xs font-700 ${item.row.excluded ? 'text-gray-500' : item.row.io === 'out' ? 'text-red-500' : 'text-emerald-600'}`}>
+                            {item.row.io === 'out' ? '−' : '+'}{won(item.row.amount)}
+                          </span>
+                          {/* 합계 제외: 후원금·축하금처럼 매출이 아닌 돈, 중복 기록 등 — 취소가 아니므로 취소선 없이 표시만 */}
+                          {item.row.excluded && <span className="inline-block mt-0.5 text-[9px] font-700 px-1.5 py-px rounded-full bg-gray-100 text-gray-500">합계 제외</span>}
                         </span>
                       </button>
                     </li>

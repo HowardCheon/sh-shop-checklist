@@ -111,9 +111,9 @@ export default function EntrySheet({ categories, initial, onClose, onSaved }: {
         </div>
         <label className="flex items-center gap-2 text-xs text-gray-600">
           <input type="checkbox" checked={form.excluded} onChange={e => setForm(f => ({ ...f, excluded: e.target.checked }))} />
-          합계에서 제외 (중복·취소 등)
+          합계에서 제외 (후원금·축하금처럼 매출이 아닌 돈, 중복 기록 등)
         </label>
-        {form.excluded && <input className={inp} value={form.exclude_reason} placeholder="제외 사유" onChange={e => setForm(f => ({ ...f, exclude_reason: e.target.value }))} />}
+        {form.excluded && <input className={inp} value={form.exclude_reason} placeholder="제외 사유 (예: 개업 축하금)" onChange={e => setForm(f => ({ ...f, exclude_reason: e.target.value }))} />}
 
         <div className="flex gap-2 pt-1">
           {initial
