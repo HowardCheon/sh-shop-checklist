@@ -28,7 +28,7 @@ interface Reservation {
   product?: { price: number; member_price: number | null } | null
   memo: string | null
   customer_message?: string | null
-  trial?: { package_id: number; label: string; expired: boolean } | null
+  trial?: { package_id: number; label: string; expired: boolean; unpaid?: boolean } | null
   confirm_sms_at?: string | null
   confirm_sms_start_at?: string | null
   remind_sms_at?: string | null
@@ -92,12 +92,12 @@ function MemberBadge({ r }: { r: Reservation }) {
     : <span className="text-[10px] font-600 px-2 py-0.5 rounded-full bg-gray-100 text-gray-400 whitespace-nowrap">비회원</span>
 }
 
-/* 첫체험 남은 횟수 배지 — 만료면 빨강 */
+/* 첫체험 남은 횟수 배지 — 만료면 빨강, 미결제 표시 */
 function TrialBadge({ r }: { r: Reservation }) {
   if (!r.trial) return null
   return (
     <span className={`text-[10px] font-700 px-2 py-0.5 rounded-full whitespace-nowrap ${r.trial.expired ? 'bg-red-50 text-red-500' : 'bg-amber-50 text-amber-700'}`}>
-      🎁 {r.trial.label}{r.trial.expired ? ' 만료' : ''}
+      🎁 {r.trial.label}{r.trial.expired ? ' 만료' : ''}{r.trial.unpaid && r.trial.label !== '첫체험 미결제' ? ' · 미결제' : ''}
     </span>
   )
 }
@@ -290,7 +290,7 @@ function ReservationDetail({ res, onClose, onStatusChange, onEdit, onComplete, o
           <Row label="날짜/시간" value={`${kstDate(res.start_at)} ${fmtTime(res.start_at)} ~ ${fmtTime(res.end_at)}`} />
           <Row label="접수" value={res.source === 'external' ? '외부 예약' : '매장 등록'} />
           <Row label="회원" value={isMember(res) ? `🌸 회원 (선불 잔액 ${fmtPrice(prepaidOf(res))})` : res.customer_id ? '비회원' : '비회원 (고객 미연결)'} />
-          {res.trial && <Row label="첫체험" value={`🎁 ${res.trial.label}${res.trial.expired ? ' (기간 만료)' : ''}`} />}
+          {res.trial && <Row label="첫체험" value={`🎁 ${res.trial.label}${res.trial.expired ? ' (기간 만료)' : ''}${res.trial.unpaid && res.trial.label !== '첫체험 미결제' ? ' · 미결제' : ''}`} />}
           {res.price_type && <Row label="예약 시" value={res.price_type === 'member' ? '회원가로 예약' : '비회원가로 예약'} />}
           {res.product_name && <Row label="시술" value={`${res.product_name}${res.duration_min ? ` (${res.duration_min}분)` : ''}`} />}
           {res.price != null && (

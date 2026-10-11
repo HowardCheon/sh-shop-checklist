@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { splitDeduction } from '@/lib/booking/prepaid'
-import { SPECIAL_CARES, defaultTrialChoice, kstToday, trialStatus, type TrialKind, type TrialPackageRow } from '@/lib/booking/trial'
+import { SPECIAL_CARES, defaultTrialChoice, isTrialUnpaid, kstToday, trialStatus, type TrialKind, type TrialPackageRow } from '@/lib/booking/trial'
 import { inReferralWindow, referralReward } from '@/lib/referral'
 
 type Method = 'card' | 'cash' | 'transfer'
@@ -32,6 +32,8 @@ export default function PaymentSheet({ reservation, onDone, onCancel }: {
   const [trialKind, setTrialKind] = useState<TrialKind>('basic')
   const [trialCare, setTrialCare] = useState('')
   const [amountBeforeTrial, setAmountBeforeTrial] = useState('')
+  // 미결제 첫체험권 — 이번에 함께 결제 (기본 켜짐)
+  const [payTrialNow, setPayTrialNow] = useState(true)
 
   // 고객 선불 잔액 조회
   useEffect(() => {
@@ -85,9 +87,12 @@ export default function PaymentSheet({ reservation, onDone, onCancel }: {
   const trialLabel = trialKind === 'basic' ? '베이직' : `스페셜${trialCare ? ` - ${trialCare}` : ''}`
 
   const value = Number(amount) || 0
-  const split = usePrepaid && balance ? splitDeduction(value, balance.cash, balance.bonus) : { cash: 0, bonus: 0, other: value }
+  const trialUnpaid = !!trialPkg && isTrialUnpaid(trialPkg)
+  const trialDue = trialUnpaid && payTrialNow && trialPkg ? trialPkg.price : 0
+  const total = value + trialDue
+  const split = usePrepaid && balance ? splitDeduction(total, balance.cash, balance.bonus) : { cash: 0, bonus: 0, other: total }
   const hasBalance = !!balance && balance.cash + balance.bonus > 0
-  const referralBonus = referral?.referrer && inReferralWindow(referral.window?.start ?? null, kstToday()) ? referralReward(value) : 0
+  const referralBonus = referral?.referrer && inReferralWindow(referral.window?.start ?? null, kstToday()) ? referralReward(value) + referralReward(trialDue) : 0
 
   const submit = async () => {
     if (amount === '' || value < 0) { setErr('결제 금액을 입력하세요'); return }
@@ -100,6 +105,7 @@ export default function PaymentSheet({ reservation, onDone, onCancel }: {
       body: JSON.stringify({
         amount: value, use_prepaid: usePrepaid && hasBalance, other_method: split.other > 0 ? method : null, memo: memo || null,
         ...(trialOn && trialPkg ? { trial: { package_id: trialPkg.id, kind: trialKind, care_name: trialKind === 'special' ? trialCare : null } } : {}),
+        ...(trialDue > 0 && trialPkg ? { trial_payment: { package_id: trialPkg.id } } : {}),
       }),
     })
     const data = await res.json()
@@ -158,8 +164,18 @@ export default function PaymentSheet({ reservation, onDone, onCancel }: {
           </div>
         )}
 
+        {trialUnpaid && trialPkg && (
+          <label className="flex items-center justify-between rounded-xl border border-amber-300 bg-amber-50 p-3">
+            <span className="text-xs font-700 text-amber-800">
+              💳 첫체험권 미결제 {won(trialPkg.price)}
+              <span className="block text-[11px] font-normal text-amber-700">{payTrialNow ? '이번에 함께 결제합니다' : '이번엔 결제하지 않음 (첫체험 카드에서 나중에 결제)'}</span>
+            </span>
+            <input type="checkbox" checked={payTrialNow} onChange={e => setPayTrialNow(e.target.checked)} className="w-4 h-4 accent-[#bc7659]" />
+          </label>
+        )}
+
         <div>
-          <label className={lbl}>결제 금액 (원)</label>
+          <label className={lbl}>{trialDue > 0 ? '시술 결제 금액 (원)' : '결제 금액 (원)'}</label>
           <input type="number" className={inp} value={amount} onChange={e => setAmount(e.target.value)} />
         </div>
 
@@ -205,7 +221,7 @@ export default function PaymentSheet({ reservation, onDone, onCancel }: {
         <div className="flex gap-2 pt-1">
           <button onClick={onCancel} className="flex-1 py-2.5 rounded-xl text-sm font-600 text-gray-500 bg-gray-100">닫기</button>
           <button onClick={submit} disabled={saving} className="flex-1 py-2.5 rounded-xl text-sm font-700 text-white disabled:opacity-40" style={{ background: '#7c9a7e' }}>
-            {saving ? '처리 중...' : `${won(value)} 완료 처리${trialOn ? ` · 첫체험 ${trialLabel}` : ''}`}
+            {saving ? '처리 중...' : `${won(total)} 완료 처리${trialOn ? ` · 첫체험 ${trialLabel}` : ''}${trialDue > 0 ? ' (첫체험권 포함)' : ''}`}
           </button>
         </div>
       </div>

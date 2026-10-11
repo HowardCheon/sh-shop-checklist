@@ -67,14 +67,19 @@ export function trialStatus(
 
 export const kstToday = (now = Date.now()) => new Date(now + 9 * 3600e3).toISOString().slice(0, 10)
 
-/** 예약 리스트 배지 — 남은 횟수 없으면 null */
+/** 미결제 — 결제가 연결되지 않았고 받을 금액이 있음 (등록 후 나중에 결제) */
+export const isTrialUnpaid = (pkg: Partial<Pick<TrialPackageRow, 'price' | 'payment_id'>>) =>
+  pkg.payment_id == null && (pkg.price ?? 0) > 0
+
+/** 예약 리스트 배지 — 남은 횟수 없으면 null (단 미결제면 '첫체험 미결제'로 남김) */
 export function trialBadge(
-  pkg: Pick<TrialPackageRow, 'basic_total' | 'special_total' | 'basic_used' | 'special_used' | 'expires_on'>,
+  pkg: Pick<TrialPackageRow, 'basic_total' | 'special_total' | 'basic_used' | 'special_used' | 'expires_on'> & Partial<Pick<TrialPackageRow, 'price' | 'payment_id'>>,
   today: string,
 ) {
   const st = trialStatus(pkg, today)
-  if (st.done) return null
-  return { label: `첫체험 B${st.basicLeft}·S${st.specialLeft}`, expired: st.expired }
+  const unpaid = isTrialUnpaid(pkg)
+  if (st.done && !unpaid) return null
+  return { label: st.done ? '첫체험 미결제' : `첫체험 B${st.basicLeft}·S${st.specialLeft}`, expired: st.expired, unpaid }
 }
 
 const CARE_KEYWORDS: [string, string][] = [['플라즈마', '플라즈마'], ['로즈', '로즈 해독'], ['상체', '상체'], ['하체', '하체']]

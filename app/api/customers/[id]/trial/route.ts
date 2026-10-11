@@ -25,17 +25,18 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   return NextResponse.json({ package: pkg.data, uses, balance: customer.data })
 }
 
-/* 첫체험 등록 + 결제 — { code, use_prepaid, other_method?, price? } (구성은 서버 상수, 가격은 지정 시 그 금액) */
+/* 첫체험 등록 — { code, pay_later?, use_prepaid, other_method?, price? } (구성은 서버 상수, 가격은 지정 시 그 금액)
+   pay_later: true 면 결제 없이 등록(미결제), 아니면 등록과 동시에 결제 */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const body = await req.json().catch(() => null)
   if (!body || typeof body !== 'object') return NextResponse.json({ error: '요청 형식 오류' }, { status: 400 })
-  const { code, use_prepaid, other_method, price } = body
+  const { code, use_prepaid, other_method, price, pay_later } = body
   if (price !== undefined && price !== null && (!Number.isInteger(price) || price < 0)) return NextResponse.json({ error: '금액은 0원 이상 정수로 입력하세요' }, { status: 400 })
   if (other_method != null && !METHODS.includes(other_method)) return NextResponse.json({ error: '결제수단 오류' }, { status: 400 })
   try {
     const def = trialPackage(code)
-    return NextResponse.json(await registerTrial(Number(id), def.code, !!use_prepaid, other_method ?? null, price ?? undefined))
+    return NextResponse.json(await registerTrial(Number(id), def.code, !!use_prepaid, other_method ?? null, price ?? undefined, pay_later === true))
   } catch (e) {
     if (e instanceof BookingError) return NextResponse.json({ error: e.message }, { status: e.status })
     const { body, status } = paymentErrorResponse(e)
