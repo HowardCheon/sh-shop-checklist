@@ -373,28 +373,32 @@ function MonthCalendar({ year, month, reservations, closedDates, onDayClick }: {
     <div>
       <div className="grid grid-cols-7 mb-1">
         {['일','월','화','수','목','금','토'].map((d,i) => (
-          <div key={d} className={`text-center text-[10px] font-600 py-1 ${i===0?'text-red-400':i===6?'text-blue-400':'text-gray-400'}`}>{d}</div>
+          <div key={d} className={`text-center text-[10px] md:text-sm font-600 py-1 ${i===0?'text-red-400':i===6?'text-blue-400':'text-gray-400'}`}>{d}</div>
         ))}
       </div>
       <div className="grid grid-cols-7 gap-px bg-brand-100 rounded-2xl overflow-hidden">
         {cells.map((cell, i) => {
-          if (!cell) return <div key={`e-${i}`} className="bg-white min-h-[60px]" />
+          if (!cell) return <div key={`e-${i}`} className="bg-white min-h-[72px] md:min-h-[140px]" />
           const isToday = cell.date === today
           const rsvs = byDate[cell.date] ?? []
           const col = i % 7
           return (
-            <button key={cell.date} onClick={() => onDayClick(cell.date)} className="bg-white min-h-[60px] p-1 text-left hover:bg-brand-50 transition-colors">
-              <span className={`text-xs font-600 inline-flex w-5 h-5 items-center justify-center rounded-full ${isToday?'bg-brand-500 text-white':col===0?'text-red-400':col===6?'text-blue-400':'text-gray-700'}`}>
-                {cell.day}
-              </span>
-              {closedSet.has(cell.date) && <span className="text-[9px] font-700 text-red-400 ml-0.5">휴무</span>}
-              <div className="mt-0.5 space-y-0.5">
-                {rsvs.slice(0,2).map(r => (
-                  <div key={r.id} className="text-[9px] leading-tight px-1 rounded truncate" style={{ background: STATUS_BG[r.status], color: STATUS_COLOR[r.status] }}>
-                    {fmtTime(r.start_at)} {isMember(r) && '🌸'}{r.customer_name}
+            <button key={cell.date} onClick={() => onDayClick(cell.date)} className="bg-white min-h-[72px] md:min-h-[140px] p-1 md:p-1.5 text-left flex flex-col justify-start hover:bg-brand-50 transition-colors">
+              <div>
+                <span className={`text-xs md:text-sm font-600 inline-flex w-5 h-5 md:w-7 md:h-7 items-center justify-center rounded-full ${isToday?'bg-brand-500 text-white':col===0?'text-red-400':col===6?'text-blue-400':'text-gray-700'}`}>
+                  {cell.day}
+                </span>
+                {closedSet.has(cell.date) && <span className="text-[9px] md:text-xs font-700 text-red-400 ml-0.5">휴무</span>}
+              </div>
+              {/* 모바일: 시간만 3건, PC: 시간+이름 6건 */}
+              <div className="mt-0.5 space-y-0.5 w-full">
+                {rsvs.slice(0, 6).map((r, idx) => (
+                  <div key={r.id} className={`text-[10px] md:text-[13px] leading-tight md:leading-snug px-1 md:px-1.5 md:py-0.5 rounded truncate ${idx >= 3 ? 'hidden md:block' : ''}`} style={{ background: STATUS_BG[r.status], color: STATUS_COLOR[r.status] }}>
+                    {fmtTime(r.start_at)}<span className="hidden md:inline"> {isMember(r) && '🌸'}{r.customer_name}</span>
                   </div>
                 ))}
-                {rsvs.length > 2 && <div className="text-[9px] text-gray-400 px-1">+{rsvs.length-2}건</div>}
+                {rsvs.length > 3 && <div className="md:hidden text-[9px] text-gray-400 px-1">+{rsvs.length - 3}건</div>}
+                {rsvs.length > 6 && <div className="hidden md:block text-xs text-gray-400 px-1.5">+{rsvs.length - 6}건</div>}
               </div>
             </button>
           )
