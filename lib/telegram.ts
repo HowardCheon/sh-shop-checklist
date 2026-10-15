@@ -1,5 +1,6 @@
 /* 텔레그램 알림 — 예약 전용 봇 (TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID)
- * 운영(Vercel): 그룹방 'ON:FLOW 알림' / 로컬(.env.local): 홍석 개인 채팅 — 테스트용 */
+ * 운영(Vercel): 그룹방 'ON:FLOW 알림' / 로컬(.env.local): 홍석 개인 채팅 — 테스트용
+ * 오류 알림만 TELEGRAM_ADMIN_CHAT_ID(홍석 개인 채팅)로, 없으면 TELEGRAM_CHAT_ID */
 
 const WEEK = ['일', '월', '화', '수', '목', '금', '토']
 
@@ -42,10 +43,8 @@ export function newReservationMessage(r: NewReservationInfo) {
 
 export type TelegramButton = { text: string; url: string }
 
-/** 설정된 채팅방으로 발송 — 실패해도 예약 처리 등에는 영향 없음 */
-export async function sendTelegram(text: string, button?: TelegramButton) {
+async function sendTo(chatId: string | undefined, text: string, button?: TelegramButton) {
   const token = process.env.TELEGRAM_BOT_TOKEN
-  const chatId = process.env.TELEGRAM_CHAT_ID
   if (!token || !chatId) return false
   try {
     const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
@@ -66,4 +65,14 @@ export async function sendTelegram(text: string, button?: TelegramButton) {
     console.error('텔레그램 발송 오류', e)
     return false
   }
+}
+
+/** 알림방으로 발송 (예약 알림·아침 보고) — 실패해도 예약 처리 등에는 영향 없음 */
+export async function sendTelegram(text: string, button?: TelegramButton) {
+  return sendTo(process.env.TELEGRAM_CHAT_ID, text, button)
+}
+
+/** 관리자(홍석) 개인 채팅으로 — 운영 오류 알림용 */
+export async function sendTelegramToAdmin(text: string) {
+  return sendTo(process.env.TELEGRAM_ADMIN_CHAT_ID || process.env.TELEGRAM_CHAT_ID, text)
 }

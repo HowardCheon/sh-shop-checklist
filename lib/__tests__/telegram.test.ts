@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { newReservationMessage, sendTelegram } from '../telegram'
+import { newReservationMessage, sendTelegram, sendTelegramToAdmin } from '../telegram'
 
 describe('sendTelegram', () => {
   afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs() })
@@ -29,6 +29,27 @@ describe('sendTelegram', () => {
     vi.stubGlobal('fetch', f)
     expect(await sendTelegram('hi')).toBe(false)
     expect(f).not.toHaveBeenCalled()
+  })
+})
+
+describe('sendTelegramToAdmin', () => {
+  afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs() })
+  const chatIds = () => {
+    const ids: string[] = []
+    vi.stubGlobal('fetch', vi.fn(async (_url: string, init: RequestInit) => { ids.push(JSON.parse(String(init.body)).chat_id); return new Response('{}', { status: 200 }) }))
+    return ids
+  }
+  it('오류 알림은 관리자 개인 채팅으로 보낸다', async () => {
+    vi.stubEnv('TELEGRAM_BOT_TOKEN', 'S'); vi.stubEnv('TELEGRAM_CHAT_ID', '-100'); vi.stubEnv('TELEGRAM_ADMIN_CHAT_ID', '7')
+    const ids = chatIds()
+    expect(await sendTelegramToAdmin('err')).toBe(true)
+    expect(ids).toEqual(['7'])
+  })
+  it('관리자 채팅이 없으면 알림방으로 보낸다', async () => {
+    vi.stubEnv('TELEGRAM_BOT_TOKEN', 'S'); vi.stubEnv('TELEGRAM_CHAT_ID', '-100'); vi.stubEnv('TELEGRAM_ADMIN_CHAT_ID', '')
+    const ids = chatIds()
+    await sendTelegramToAdmin('err')
+    expect(ids).toEqual(['-100'])
   })
 })
 
