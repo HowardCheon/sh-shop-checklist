@@ -1,4 +1,5 @@
-/* 텔레그램 알림 — 예약 전용 봇 (TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID) */
+/* 텔레그램 알림 — 예약 전용 봇 (TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID)
+ * 운영(Vercel): 그룹방 'ON:FLOW 알림' / 로컬(.env.local): 홍석 개인 채팅 — 테스트용 */
 
 const WEEK = ['일', '월', '화', '수', '목', '금', '토']
 
@@ -39,23 +40,19 @@ export function newReservationMessage(r: NewReservationInfo) {
   return lines.join('\n')
 }
 
-/** 발송 대상 — 1순위(TELEGRAM_PRIMARY_*) 먼저, 2순위(TELEGRAM_*) 다음. 설정된 곳만 */
-function targets() {
-  return [
-    { label: '1순위', token: process.env.TELEGRAM_PRIMARY_BOT_TOKEN, chatId: process.env.TELEGRAM_PRIMARY_CHAT_ID },
-    { label: '2순위', token: process.env.TELEGRAM_BOT_TOKEN, chatId: process.env.TELEGRAM_CHAT_ID },
-  ].filter((t): t is { label: string; token: string; chatId: string } => !!t.token && !!t.chatId)
-}
-
 export type TelegramButton = { text: string; url: string }
 
-async function sendOne(t: { label: string; token: string; chatId: string }, text: string, button?: TelegramButton) {
+/** 설정된 채팅방으로 발송 — 실패해도 예약 처리 등에는 영향 없음 */
+export async function sendTelegram(text: string, button?: TelegramButton) {
+  const token = process.env.TELEGRAM_BOT_TOKEN
+  const chatId = process.env.TELEGRAM_CHAT_ID
+  if (!token || !chatId) return false
   try {
-    const res = await fetch(`https://api.telegram.org/bot${t.token}/sendMessage`, {
+    const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        chat_id: t.chatId,
+        chat_id: chatId,
         text,
         parse_mode: 'HTML',
         disable_web_page_preview: true,
@@ -63,23 +60,10 @@ async function sendOne(t: { label: string; token: string; chatId: string }, text
       }),
       signal: AbortSignal.timeout(8000),
     })
-    if (!res.ok) console.error(`텔레그램(${t.label}) 발송 실패`, res.status, await res.text())
+    if (!res.ok) console.error('텔레그램 발송 실패', res.status, await res.text())
     return res.ok
   } catch (e) {
-    console.error(`텔레그램(${t.label}) 발송 오류`, e)
+    console.error('텔레그램 발송 오류', e)
     return false
   }
-}
-
-/** 관리자(홍석, 2순위 봇)에게만 — 운영 오류 알림용 */
-export async function sendTelegramToAdmin(text: string) {
-  const t = targets().find(x => x.label === '2순위')
-  return t ? sendOne(t, text) : false
-}
-
-/** 모든 대상에 순위대로 발송 — 한 곳이 실패해도 나머지는 계속, 예약 처리에는 영향 없음 */
-export async function sendTelegram(text: string, button?: TelegramButton) {
-  const results: boolean[] = []
-  for (const t of targets()) results.push(await sendOne(t, text, button))
-  return results.length > 0 && results.every(Boolean)
 }

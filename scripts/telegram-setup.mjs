@@ -1,10 +1,10 @@
 // 예약 알림 봇 설정 도우미
-// 1) .env.local 에 토큰 추가 (1순위: TELEGRAM_PRIMARY_BOT_TOKEN, 2순위: TELEGRAM_BOT_TOKEN)
-// 2) 텔레그램에서 그 봇에게 아무 메시지 전송
-// 3) node scripts/telegram-setup.mjs [primary]  → 채팅 ID 를 찾아 .env.local 에 저장하고 테스트 메시지 발송
+// 1) .env.local 에 TELEGRAM_BOT_TOKEN 추가
+// 2) 텔레그램에서 그 봇에게(또는 봇이 있는 그룹방에) 아무 메시지 전송
+// 3) node scripts/telegram-setup.mjs  → 채팅 ID 를 찾아 .env.local 에 저장하고 테스트 메시지 발송
 import fs from 'node:fs'
 
-const P = process.argv[2] === 'primary' ? 'TELEGRAM_PRIMARY_' : 'TELEGRAM_'
+const P = 'TELEGRAM_'
 const file = '.env.local'
 let text = fs.readFileSync(file, 'utf8')
 const get = k => (text.match(new RegExp(`^${k}=(.*)$`, 'm')) || [])[1]

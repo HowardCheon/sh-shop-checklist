@@ -17,7 +17,7 @@ export const GET = publicApi(async (req: NextRequest) => ({
 export const POST = publicApi(async (req: NextRequest) => {
   const body = await readJson(req)
   const r = await createReservation(body)
-  // 예약 성공 시에만, 응답을 보낸 뒤 원장님 텔레그램으로 알림 (+ 관리자 앱에서 바로 여는 버튼)
+  // 예약 성공 시에만, 응답을 보낸 뒤 텔레그램 알림방으로 알림 (+ 관리자 앱에서 바로 여는 버튼)
   const adminUrl = process.env.ADMIN_BASE_URL || req.nextUrl.origin
   after(() => sendTelegram(newReservationMessage({
     name: r.customer_name,

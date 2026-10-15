@@ -1,5 +1,5 @@
-/* 운영 알림 — SMS 발송 실패·관리자 로그인 실패를 관리자(홍석, 2순위 봇) 텔레그램으로 */
-import { sendTelegramToAdmin } from './telegram'
+/* 운영 알림 — SMS 발송 실패·관리자 로그인 실패를 텔레그램 알림방으로 */
+import { sendTelegram } from './telegram'
 
 const THROTTLE_MS = 5 * 60 * 1000
 
@@ -64,7 +64,7 @@ export function createSmsFailureAlerter(deps: { send: (text: string) => Promise<
   return (phone: string, reason: string) => alert({ phone, reason })
 }
 
-export const alertSmsFailure = createSmsFailureAlerter({ send: sendTelegramToAdmin })
+export const alertSmsFailure = createSmsFailureAlerter({ send: sendTelegram })
 
 type LoginFailure = { ip: string; byIp: number; total: number; blocked: boolean }
 
@@ -84,4 +84,4 @@ export function createLoginFailureAlerter(deps: { send: (text: string) => Promis
   return createThrottledAlerter<LoginFailure>(deps, (r, at, suppressed) => loginFailureMessage({ ...r, at, suppressed }))
 }
 
-export const alertLoginFailure = createLoginFailureAlerter({ send: sendTelegramToAdmin })
+export const alertLoginFailure = createLoginFailureAlerter({ send: sendTelegram })

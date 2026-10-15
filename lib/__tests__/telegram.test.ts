@@ -1,29 +1,20 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { newReservationMessage, sendTelegram } from '../telegram'
 
-describe('sendTelegram (1순위 → 2순위)', () => {
+describe('sendTelegram', () => {
   afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs() })
-  const setEnv = () => {
-    vi.stubEnv('TELEGRAM_PRIMARY_BOT_TOKEN', 'P'); vi.stubEnv('TELEGRAM_PRIMARY_CHAT_ID', '1')
-    vi.stubEnv('TELEGRAM_BOT_TOKEN', 'S'); vi.stubEnv('TELEGRAM_CHAT_ID', '2')
-  }
-  it('1순위 봇에 먼저, 이어서 2순위 봇에 보낸다', async () => {
+  const setEnv = () => { vi.stubEnv('TELEGRAM_BOT_TOKEN', 'S'); vi.stubEnv('TELEGRAM_CHAT_ID', '-100') }
+  it('설정된 봇으로 설정된 채팅방에 보낸다', async () => {
     setEnv()
-    const calls: string[] = []
-    vi.stubGlobal('fetch', vi.fn(async (url: string) => { calls.push(url); return new Response('{}', { status: 200 }) }))
+    const calls: { url: string; chat_id: string }[] = []
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init: RequestInit) => { calls.push({ url, chat_id: JSON.parse(String(init.body)).chat_id }); return new Response('{}', { status: 200 }) }))
     expect(await sendTelegram('hi')).toBe(true)
-    expect(calls).toEqual(['https://api.telegram.org/botP/sendMessage', 'https://api.telegram.org/botS/sendMessage'])
+    expect(calls).toEqual([{ url: 'https://api.telegram.org/botS/sendMessage', chat_id: '-100' }])
   })
-  it('1순위가 실패해도 2순위는 보낸다', async () => {
+  it('발송 오류는 false 로 돌려준다', async () => {
     setEnv()
-    const calls: string[] = []
-    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
-      calls.push(url)
-      if (url.includes('botP')) throw new Error('down')
-      return new Response('{}', { status: 200 })
-    }))
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('down') }))
     expect(await sendTelegram('hi')).toBe(false)
-    expect(calls).toHaveLength(2)
   })
   it('버튼을 주면 inline 버튼으로 붙인다', async () => {
     setEnv()
@@ -33,7 +24,7 @@ describe('sendTelegram (1순위 → 2순위)', () => {
     expect(bodies[0].reply_markup).toEqual({ inline_keyboard: [[{ text: '📋 예약 확인하기', url: 'https://x.test/?date=2026-10-06&open=1' }]] })
   })
   it('설정이 없으면 보내지 않는다', async () => {
-    vi.stubEnv('TELEGRAM_PRIMARY_BOT_TOKEN', ''); vi.stubEnv('TELEGRAM_BOT_TOKEN', '')
+    vi.stubEnv('TELEGRAM_BOT_TOKEN', ''); vi.stubEnv('TELEGRAM_CHAT_ID', '')
     const f = vi.fn()
     vi.stubGlobal('fetch', f)
     expect(await sendTelegram('hi')).toBe(false)
