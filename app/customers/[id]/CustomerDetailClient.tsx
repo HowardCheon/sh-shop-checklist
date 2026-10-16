@@ -7,6 +7,7 @@ import TrialPanel from './TrialPanel'
 import ReferralPanel from './ReferralPanel'
 import ReservationForm, { EMPTY_FORM, saveReservation, type Product, type PaymentMethod } from '../../reservations/ReservationForm'
 import { isoToKst } from '@/lib/booking/time'
+import { androidContactIntent, contactVCard } from '@/lib/contact'
 import { calcStats, fmtDate, fmtTime, fmtPrice, STATUS_LABEL, STATUS_COLOR, STATUS_BG, type Customer, type CustomerHistory, type Reservation } from '../customer-utils'
 
 
@@ -56,6 +57,16 @@ export default function CustomerDetailClient({ initialCustomer, initialHistory, 
     router.replace('/customers')
   }
 
+  // 휴대폰 연락처에 저장 — 안드로이드는 새 연락처 화면, 그 외는 vCard 파일
+  const saveToContacts = () => {
+    if (!customer.phone) return
+    if (/android/i.test(navigator.userAgent)) { location.href = androidContactIntent(customer.name, customer.phone); return }
+    const url = URL.createObjectURL(new Blob([contactVCard(customer.name, customer.phone)], { type: 'text/vcard' }))
+    const a = Object.assign(document.createElement('a'), { href: url, download: `${customer.name}.vcf` })
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   const inp = "w-full text-sm rounded-xl border border-gray-200 px-3 py-2.5 outline-none bg-gray-50 focus:bg-white focus:border-brand-300 transition-colors"
   const lbl = "block text-xs font-600 text-gray-500 mb-1"
 
@@ -83,7 +94,10 @@ export default function CustomerDetailClient({ initialCustomer, initialHistory, 
                 <button onClick={handleSave} disabled={saving} className="px-3 py-1.5 rounded-lg text-xs text-white" style={{ background: '#bc7659' }}>{saving ? '...' : '저장'}</button>
               </>
             ) : (
-              <button onClick={() => setEditing(true)} className="px-3 py-1.5 rounded-lg text-xs text-gray-500 bg-gray-100">편집</button>
+              <>
+                {customer.phone && <button onClick={saveToContacts} className="px-3 py-1.5 rounded-lg text-xs text-brand-600 bg-brand-50">연락처 저장</button>}
+                <button onClick={() => setEditing(true)} className="px-3 py-1.5 rounded-lg text-xs text-gray-500 bg-gray-100">편집</button>
+              </>
             )}
           </div>
         </div>
