@@ -1,16 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { androidContactIntent, contactVCard, treatmentNote } from '../contact'
-
-describe('androidContactIntent', () => {
-  it('새 연락처 화면에 이름·번호를 채운다', () => {
-    expect(androidContactIntent('홍길동', '01012345678')).toBe(
-      'intent:#Intent;action=android.intent.action.INSERT;type=vnd.android.cursor.dir/raw_contact;' +
-      `S.name=${encodeURIComponent('홍길동')};S.phone=010-1234-5678;end`)
-  })
-  it('이름의 ; 등은 인코딩해 intent 를 깨지 않는다', () => {
-    expect(androidContactIntent('a;b#c', '01012345678')).toContain('S.name=a%3Bb%23c;')
-  })
-})
+import { contactVCard, treatmentNote } from '../contact'
 
 describe('contactVCard', () => {
   it('이름·휴대폰 번호', () => {
@@ -46,9 +35,8 @@ describe('treatmentNote', () => {
     expect(lines[1]).toBe('2026.02.01 베이직')
     expect(lines[31]).toBe('외 2건')
   })
-  it('메모는 intent 와 vCard 에 들어간다', () => {
+  it('메모는 vCard NOTE 에 들어간다', () => {
     const note = '내역\n2026.10.02 스페셜, 팩'
-    expect(androidContactIntent('홍길동', '01012345678', note)).toContain(`S.notes=${encodeURIComponent(note)};end`)
     expect(contactVCard('홍길동', '01012345678', note)).toContain('NOTE:내역\\n2026.10.02 스페셜\\, 팩\r\n')
   })
 })

@@ -1,4 +1,4 @@
-/* 고객을 휴대폰 연락처에 저장 — 안드로이드는 '새 연락처' 화면을 바로 열고, 그 외는 vCard 파일
+/* 고객을 휴대폰 연락처에 저장 — vCard 파일 (안드로이드 크롬은 intent 로 연락처 앱을 열 수 없어 파일 방식)
  * 메모에는 저장 시점까지의 시술 내역 (이후 변경은 반영되지 않음) */
 import { isoToKst } from './booking/time'
 
@@ -16,12 +16,6 @@ export function treatmentNote(reservations: { start_at: string; product_name: st
   const lines = done.slice(0, NOTE_MAX).map(r => `${isoToKst(r.start_at).date.replace(/-/g, '.')} ${r.product_name ?? '시술'}`)
   if (done.length > NOTE_MAX) lines.push(`외 ${done.length - NOTE_MAX}건`)
   return [`온:플로우 시술 내역 (${isoToKst(now.toISOString()).date.replace(/-/g, '.')} 기준, 총 ${done.length}회)`, ...lines].join('\n')
-}
-
-/** 안드로이드 연락처 앱의 새 연락처 화면 (이름·번호·메모 채워짐) */
-export function androidContactIntent(name: string, phone: string, note = '') {
-  const e = encodeURIComponent
-  return `intent:#Intent;action=android.intent.action.INSERT;type=vnd.android.cursor.dir/raw_contact;S.name=${e(name)};S.phone=${e(hyphen(phone))};${note ? `S.notes=${e(note)};` : ''}end`
 }
 
 /** vCard 3.0 — 특수문자(\ , ;) 이스케이프 */

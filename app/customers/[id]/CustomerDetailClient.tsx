@@ -7,7 +7,7 @@ import TrialPanel from './TrialPanel'
 import ReferralPanel from './ReferralPanel'
 import ReservationForm, { EMPTY_FORM, saveReservation, type Product, type PaymentMethod } from '../../reservations/ReservationForm'
 import { isoToKst } from '@/lib/booking/time'
-import { androidContactIntent, contactVCard, treatmentNote } from '@/lib/contact'
+import { contactVCard, treatmentNote } from '@/lib/contact'
 import { calcStats, fmtDate, fmtTime, fmtPrice, STATUS_LABEL, STATUS_COLOR, STATUS_BG, type Customer, type CustomerHistory, type Reservation } from '../customer-utils'
 
 
@@ -57,15 +57,14 @@ export default function CustomerDetailClient({ initialCustomer, initialHistory, 
     router.replace('/customers')
   }
 
-  // 휴대폰 연락처에 저장 (메모: 시술 내역) — 안드로이드는 새 연락처 화면, 그 외는 vCard 파일
+  // 휴대폰 연락처에 저장 (메모: 시술 내역) — vCard 파일을 받아 열면 연락처 앱으로 가져오기
   const saveToContacts = () => {
     if (!customer.phone) return
     const note = treatmentNote(customer.reservations ?? [])
-    if (/android/i.test(navigator.userAgent)) { location.href = androidContactIntent(customer.name, customer.phone, note); return }
-    const url = URL.createObjectURL(new Blob([contactVCard(customer.name, customer.phone, note)], { type: 'text/vcard' }))
+    const url = URL.createObjectURL(new Blob([contactVCard(customer.name, customer.phone, note)], { type: 'text/x-vcard' }))
     const a = Object.assign(document.createElement('a'), { href: url, download: `${customer.name}.vcf` })
     a.click()
-    URL.revokeObjectURL(url)
+    setTimeout(() => URL.revokeObjectURL(url), 60_000) // 모바일은 바로 해제하면 다운로드가 취소될 수 있음
   }
 
   const inp = "w-full text-sm rounded-xl border border-gray-200 px-3 py-2.5 outline-none bg-gray-50 focus:bg-white focus:border-brand-300 transition-colors"
