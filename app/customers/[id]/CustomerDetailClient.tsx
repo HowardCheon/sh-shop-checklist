@@ -7,7 +7,7 @@ import TrialPanel from './TrialPanel'
 import ReferralPanel from './ReferralPanel'
 import ReservationForm, { EMPTY_FORM, saveReservation, type Product, type PaymentMethod } from '../../reservations/ReservationForm'
 import { isoToKst } from '@/lib/booking/time'
-import { androidContactIntent, contactVCard } from '@/lib/contact'
+import { androidContactIntent, contactVCard, treatmentNote } from '@/lib/contact'
 import { calcStats, fmtDate, fmtTime, fmtPrice, STATUS_LABEL, STATUS_COLOR, STATUS_BG, type Customer, type CustomerHistory, type Reservation } from '../customer-utils'
 
 
@@ -57,11 +57,12 @@ export default function CustomerDetailClient({ initialCustomer, initialHistory, 
     router.replace('/customers')
   }
 
-  // 휴대폰 연락처에 저장 — 안드로이드는 새 연락처 화면, 그 외는 vCard 파일
+  // 휴대폰 연락처에 저장 (메모: 시술 내역) — 안드로이드는 새 연락처 화면, 그 외는 vCard 파일
   const saveToContacts = () => {
     if (!customer.phone) return
-    if (/android/i.test(navigator.userAgent)) { location.href = androidContactIntent(customer.name, customer.phone); return }
-    const url = URL.createObjectURL(new Blob([contactVCard(customer.name, customer.phone)], { type: 'text/vcard' }))
+    const note = treatmentNote(customer.reservations ?? [])
+    if (/android/i.test(navigator.userAgent)) { location.href = androidContactIntent(customer.name, customer.phone, note); return }
+    const url = URL.createObjectURL(new Blob([contactVCard(customer.name, customer.phone, note)], { type: 'text/vcard' }))
     const a = Object.assign(document.createElement('a'), { href: url, download: `${customer.name}.vcf` })
     a.click()
     URL.revokeObjectURL(url)

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { androidContactIntent, contactVCard } from '../contact'
+import { androidContactIntent, contactVCard, treatmentNote } from '../contact'
 
 describe('androidContactIntent', () => {
   it('새 연락처 화면에 이름·번호를 채운다', () => {
@@ -21,5 +21,34 @@ describe('contactVCard', () => {
   })
   it('특수문자 이스케이프', () => {
     expect(contactVCard('김,이;박', '010')).toContain('FN:김\\,이\\;박')
+  })
+})
+
+describe('treatmentNote', () => {
+  const r = (start_at: string, product_name: string | null, status = 'completed') => ({ start_at, product_name, status })
+  const now = new Date('2026-10-16T05:00:00Z')
+  it('완료된 시술만 최신순, KST 날짜', () => {
+    const note = treatmentNote([
+      r('2026-09-01T01:00:00Z', '베이직'),
+      r('2026-10-01T16:00:00Z', '스페셜'), // KST 10/02 01:00
+      r('2026-10-10T01:00:00Z', '베이직', 'cancelled'),
+      r('2026-10-20T01:00:00Z', '베이직', 'scheduled'),
+    ], now)
+    expect(note).toBe('온:플로우 시술 내역 (2026.10.16 기준, 총 2회)\n2026.10.02 스페셜\n2026.09.01 베이직')
+  })
+  it('시술이 없으면 빈 메모', () => {
+    expect(treatmentNote([r('2026-10-20T01:00:00Z', '베이직', 'scheduled')], now)).toBe('')
+  })
+  it('30건 넘으면 최근 30건 + 외 N건', () => {
+    const many = Array.from({ length: 32 }, (_, i) => r(new Date(Date.UTC(2026, 0, 1 + i)).toISOString(), '베이직'))
+    const lines = treatmentNote(many, now).split('\n')
+    expect(lines).toHaveLength(32)
+    expect(lines[1]).toBe('2026.02.01 베이직')
+    expect(lines[31]).toBe('외 2건')
+  })
+  it('메모는 intent 와 vCard 에 들어간다', () => {
+    const note = '내역\n2026.10.02 스페셜, 팩'
+    expect(androidContactIntent('홍길동', '01012345678', note)).toContain(`S.notes=${encodeURIComponent(note)};end`)
+    expect(contactVCard('홍길동', '01012345678', note)).toContain('NOTE:내역\\n2026.10.02 스페셜\\, 팩\r\n')
   })
 })
