@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import DateTimePicker from './DateTimePicker'
 import { isoToKst } from '@/lib/booking/time'
+import { formatPhone } from '@/lib/contact'
 
 /* ── 예약 추가·수정 폼 — 예약 관리와 고객 상세(방문 이력 수정)에서 공용 ── */
 
@@ -30,10 +31,6 @@ const METHODS: { value: PaymentMethod; label: string }[] = [
 ]
 
 const prepaidTotal = (c: CustomerOption) => (c.prepaid_cash ?? 0) + (c.prepaid_bonus ?? 0)
-const fmtPhone = (p: string | null) => {
-  const d = (p ?? '').replace(/\D/g, '')
-  return d.length === 11 ? `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7)}` : p ?? ''
-}
 /* 시술가 — 회원이면 회원가 */
 const priceFor = (p: Product, member: boolean) => (member ? p.member_price ?? p.price : p.price)
 
@@ -95,7 +92,7 @@ export default function ReservationForm({ initial, products, date, onSave, onCan
     const member = prepaidTotal(c) > 0
     setForm(f => {
       const p = products.find(p => p.id === Number(f.product_id))
-      return { ...f, customer_name: c.name, customer_phone: fmtPhone(c.phone), customer_id: String(c.id), price: p && !completed ? priceFor(p, member).toString() : f.price }
+      return { ...f, customer_name: c.name, customer_phone: formatPhone(c.phone), customer_id: String(c.id), price: p && !completed ? priceFor(p, member).toString() : f.price }
     })
     setShowPicker(false)
   }
@@ -132,7 +129,7 @@ export default function ReservationForm({ initial, products, date, onSave, onCan
                     <li key={c.id}>
                       <button type="button" onMouseDown={e => e.preventDefault()} onClick={() => pickCustomer(c)}
                         className="w-full flex items-center justify-between gap-2 px-3 py-2 text-left hover:bg-brand-50">
-                        <span className="text-sm text-gray-800">{c.name} <span className="text-xs text-gray-400">{fmtPhone(c.phone)}</span></span>
+                        <span className="text-sm text-gray-800">{c.name} <span className="text-xs text-gray-400">{formatPhone(c.phone)}</span></span>
                         {prepaidTotal(c) > 0
                           ? <span className="text-[10px] font-700 px-2 py-0.5 rounded-full bg-brand-50 text-brand-600 whitespace-nowrap">🌸 회원</span>
                           : <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-400 whitespace-nowrap">비회원</span>}
@@ -224,20 +221,21 @@ export async function saveReservation({ form, products, editId, paymentMethod }:
   const post = (body: object) => fetch(editId ? `/api/reservations/${editId}` : '/api/reservations', {
     method: editId ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
   })
-  let res = await post(payload)
-  let data = await res.json().catch(() => ({}))
-  // 관리자 휴무시간과 겹치면 확인 후 그대로 저장
-  if (res.status === 409 && data.closed_slot) {
-    if (!confirm(`휴무시간(${data.closed_slot.start}~${data.closed_slot.end})과 겹칩니다. 그래도 저장할까요?`)) return '휴무시간과 겹쳐 저장하지 않았어요'
-    res = await post({ ...payload, allow_closed: true })
-    data = await res.json().catch(() => ({}))
-  }
-  if (!res.ok) {
-    if (data.conflict) {
+  // 다른 예약·관리자 휴무시간과 겹치면 하나씩 확인 후 그대로 저장
+  const allow: { allow_overlap?: true; allow_closed?: true } = {}
+  for (;;) {
+    const res = await post({ ...payload, ...allow })
+    const data = await res.json().catch(() => ({}))
+    if (res.ok) return null
+    if (res.status === 409 && data.conflict && !allow.allow_overlap) {
       const c = data.conflict
-      return `${c.customer_name}님 예약(${fmtTime(c.start_at)}~${fmtTime(c.end_at)})과 시간이 겹칩니다`
+      if (!confirm(`${c.customer_name}님 예약(${fmtTime(c.start_at)}~${fmtTime(c.end_at)})과 시간이 겹칩니다. 그래도 저장할까요?`)) return '다른 예약과 겹쳐 저장하지 않았어요'
+      allow.allow_overlap = true
+    } else if (res.status === 409 && data.closed_slot && !allow.allow_closed) {
+      if (!confirm(`휴무시간(${data.closed_slot.start}~${data.closed_slot.end})과 겹칩니다. 그래도 저장할까요?`)) return '휴무시간과 겹쳐 저장하지 않았어요'
+      allow.allow_closed = true
+    } else {
+      return data.error ?? '저장 실패'
     }
-    return data.error ?? '저장 실패'
   }
-  return null
 }

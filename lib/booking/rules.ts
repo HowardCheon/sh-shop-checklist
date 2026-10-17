@@ -2,7 +2,7 @@
 import { BookingError } from './errors'
 import { addDays, dayOfWeek, isValidDate, isValidTime, kstNow, kstToIso, minutesOf, timeOf } from './time'
 
-export const BUFFER_MIN = 20       // 시술 후 정리시간
+export const BUFFER_MIN = 10       // 시술 후 정리시간
 export const SLOT_MIN = 30         // 시작 시각 간격
 export const LAST_START_BEFORE_CLOSE_MIN = 30
 export const LEAD_MIN = 120        // 현재로부터 최소 여유

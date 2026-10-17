@@ -32,9 +32,9 @@ export async function POST(req: NextRequest) {
   const mins = duration_min ?? 60
   const times = blockTimes(start_at, mins)
 
-  // 겹침 확인 (시술 + 정리시간 20분 블록)
+  // 겹침 확인 (시술 + 정리시간 블록) — 관리자가 확인하면(allow_overlap) 겹쳐도 저장
   const conflict = await findConflict(times.start_at, times.block_end_at)
-  if (conflict) return NextResponse.json({ error: '예약 시간 충돌', conflict }, { status: 409 })
+  if (conflict && !body.allow_overlap) return NextResponse.json({ error: '예약 시간 충돌', conflict }, { status: 409 })
   // 관리자 휴무시간과 겹치면 확인 요청 (확인 후 allow_closed 로 다시 저장)
   if (!body.allow_closed) {
     const closed = await findClosedOverlap(times.start_at, times.block_end_at)
@@ -54,6 +54,7 @@ export async function POST(req: NextRequest) {
       product_name: product_name || null,
       duration_min: mins,
       ...times,
+      allow_overlap: !!conflict,
       price: price ?? null,
       status: 'scheduled',
       source: 'admin',

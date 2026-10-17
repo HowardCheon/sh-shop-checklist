@@ -15,9 +15,9 @@ try {
   const id = r.body.id
   const customerId = r.body.customer_id
 
-  r = await call('POST', '/api/reservations', { customer_name: '다른고객', start_at: `${day}T11:10:00+09:00`, duration_min: 60 })
-  check('정리시간(11:20까지) 안에 들어오면 409', r.status === 409 && r.body.conflict, r)
-  r = await call('POST', '/api/reservations', { customer_name: '다른고객', customer_phone: '010-9999-0022', start_at: `${day}T11:20:00+09:00`, duration_min: 60 })
+  r = await call('POST', '/api/reservations', { customer_name: '다른고객', customer_phone: '010-9999-0022', start_at: `${day}T11:05:00+09:00`, duration_min: 60 })
+  check('정리시간(11:10까지) 안에 들어오면 409', r.status === 409 && r.body.conflict, r)
+  r = await call('POST', '/api/reservations', { customer_name: '다른고객', customer_phone: '010-9999-0022', start_at: `${day}T11:10:00+09:00`, duration_min: 60 })
   check('정리시간 끝난 직후는 허용', r.status === 200, r)
 
   r = await call('PUT', `/api/reservations/${id}`, { status: 'cancelled' })

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { sendSms } from '@/lib/solapi'
 import { alertSmsFailure } from '@/lib/alerts'
-import { confirmText, locationText, remindText, smsAllowed, smsBytes } from '@/lib/booking/sms-templates'
+import { confirmText, locationText, remindText, smsAllowed, smsBytes, LMS_MAX_BYTES } from '@/lib/booking/sms-templates'
 import { isoToKst } from '@/lib/booking/time'
 import { recordSmsLog } from '@/lib/sms-log'
 
@@ -12,10 +12,10 @@ const TYPES: Record<'confirm' | 'remind' | 'location', { label: string; build: (
   location: { label: '위치 안내', build: () => locationText(), at: 'location_sms_at', startAt: null }, // 예약 시간과 무관
 }
 
-/* 예약 확정·전일 안내·위치 안내 문자 발송 — { type: 'confirm' | 'remind' | 'location' }. 시간 변경 후 재발송 가능 */
+/* 예약 확정·전일 안내·위치 안내 문자 발송 — { type: 'confirm' | 'remind' | 'location', text? }. text 를 주면 이번 한 건만 그 문구로. 시간 변경 후 재발송 가능 */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const { type } = await req.json().catch(() => ({}))
+  const { type, text: edited } = await req.json().catch(() => ({}))
   const t = TYPES[type as keyof typeof TYPES]
   if (!Object.hasOwn(TYPES, type ?? '') || !t) return NextResponse.json({ error: '문자 종류 오류' }, { status: 400 })
 
@@ -26,7 +26,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const phone = (resv.customer_phone ?? '').replace(/\D/g, '')
   if (!/^01\d{8,9}$/.test(phone)) return NextResponse.json({ error: '휴대폰 번호가 없는 예약입니다' }, { status: 400 })
 
-  const text = t.build(resv.customer_name.trim(), resv.start_at)
+  const base = t.build(resv.customer_name.trim(), resv.start_at)
+  const text = typeof edited === 'string' ? edited.trim() : base
+  if (!text) return NextResponse.json({ error: '문자 내용을 입력하세요' }, { status: 400 })
+  if (smsBytes(text) > LMS_MAX_BYTES) return NextResponse.json({ error: `문자가 너무 깁니다 (${LMS_MAX_BYTES}바이트 이내)` }, { status: 400 })
   const sent = await sendSms(phone, text)
   await recordSmsLog({
     kind: type, reservationId: resv.id, customerName: resv.customer_name, phone, text,
@@ -45,7 +48,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   await supabase.from('sh_shop_reservation_history').insert({
     reservation_id: resv.id,
     action: 'sms',
-    description: `${t.label} 문자 발송 (${start.date} ${start.time} 기준)`,
+    description: `${t.label} 문자 발송 (${start.date} ${start.time} 기준)${text !== base ? ' · 문구 수정' : ''}`,
   })
   return NextResponse.json({ reservation: data, text, bytes: smsBytes(text) })
 }

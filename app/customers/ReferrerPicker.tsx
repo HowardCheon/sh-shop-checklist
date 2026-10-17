@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { formatPhone } from '@/lib/contact'
 
 type Option = { id: number; name: string; phone: string | null }
 
@@ -22,7 +23,7 @@ export default function ReferrerPicker({ customers, excludeId, value, onChange, 
   if (value) {
     return (
       <div className="flex items-center justify-between rounded-xl border border-brand-200 bg-brand-50 px-3 py-2">
-        <span className="text-sm text-brand-700 font-600">{value.name} {value.phone && <span className="text-xs text-gray-400 font-normal">{value.phone}</span>}</span>
+        <span className="text-sm text-brand-700 font-600">{value.name} {value.phone && <span className="text-xs text-gray-400 font-normal">{formatPhone(value.phone)}</span>}</span>
         <button type="button" onClick={() => onChange(null)} className="text-xs text-gray-400">해제</button>
       </div>
     )
@@ -35,7 +36,7 @@ export default function ReferrerPicker({ customers, excludeId, value, onChange, 
           {matches.map(c => (
             <li key={c.id}>
               <button type="button" onClick={() => { onChange(c); setQ('') }} className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-brand-50">
-                {c.name} {c.phone && <span className="text-xs text-gray-400">{c.phone}</span>}
+                {c.name} {c.phone && <span className="text-xs text-gray-400">{formatPhone(c.phone)}</span>}
               </button>
             </li>
           ))}

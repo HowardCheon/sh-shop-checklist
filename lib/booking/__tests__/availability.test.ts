@@ -14,15 +14,15 @@ const block = (id: number, from: string, to: string): Block => ({ id, start: kst
 
 describe('availability', () => {
   it('블록 끝과 다음 예약 시작이 같으면 허용', () => {
-    // 11:30 예약 → 10:00 시작은 소요 70분 이하(블록 90분)만 가능
+    // 11:30 예약 → 10:00 시작은 소요 80분 이하(블록 90분 = 시술 + 정리 10분)만 가능
     const blocks = [block(9, '11:30', '12:50')]
-    expect(fits(D, '10:00', 70, blocks)).toBe(true)
-    expect(fits(D, '10:00', 71, blocks)).toBe(false)
+    expect(fits(D, '10:00', 80, blocks)).toBe(true)
+    expect(fits(D, '10:00', 81, blocks)).toBe(false)
   })
   it('앞뒤로 빈 시간에는 들어가는 프로그램만 보여준다', () => {
     // 10:00~11:20 블록, 13:00 예약 → 11:30 시작 가능 블록 90분
     const blocks = [block(1, '10:00', '11:20'), block(2, '13:00', '14:20')]
-    expect(programsAt(D, '11:30', P, blocks).map(p => p.id)).toEqual([1, 2])
+    expect(programsAt(D, '11:30', P, blocks).map(p => p.id)).toEqual([1, 2, 3])
     expect(programsAt(D, '11:00', P, blocks)).toEqual([]) // 기존 블록 안
   })
   it('슬롯은 가능한 프로그램이 1개 이상인 시각만', () => {

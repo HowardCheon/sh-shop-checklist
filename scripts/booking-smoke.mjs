@@ -33,12 +33,13 @@ async function cleanup() {
              delete from sh_shop_customers where phone like '0109999%';`)
 }
 
-// 다음 주 화요일/수요일 (KST)
+// N주 뒤 화요일/수요일 (KST) — 실제 손님 예약과 겹치면 SMOKE_WEEKS 로 더 먼 주를 지정
 const kstToday = new Date(Date.now() + 9 * 3600e3)
 const plus = n => new Date(kstToday.getTime() + n * 86400e3).toISOString().slice(0, 10)
 const dow = kstToday.getUTCDay()
-const TUE = plus(((2 - dow + 7) % 7) + 7)
-const WED = plus(((3 - dow + 7) % 7) + 7)
+const WEEKS = Number(process.env.SMOKE_WEEKS || 1)
+const TUE = plus(((2 - dow + 7) % 7) + 7 * WEEKS)
+const WED = plus(((3 - dow + 7) % 7) + 7 * WEEKS)
 
 await cleanup()
 try {

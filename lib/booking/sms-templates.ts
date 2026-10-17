@@ -30,6 +30,7 @@ export function smsBytes(text: string) {
 }
 
 export const SMS_MAX_BYTES = 80
+export const LMS_MAX_BYTES = 2000 // 장문(LMS) 한도 — 문구를 직접 고칠 때 상한
 
 /** 문자 발송 가능 — 관리 시작 시각 전까지만 */
 export function smsAllowed(startIso: string, now = Date.now()) {

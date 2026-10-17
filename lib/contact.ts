@@ -4,9 +4,12 @@ import { isoToKst } from './booking/time'
 
 const NOTE_MAX = 30 // 메모가 너무 길어지지 않게 최근 시술만
 
-const hyphen = (p: string) => {
-  const d = p.replace(/\D/g, '')
-  return d.length === 11 ? `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7)}` : p
+/** 휴대폰 번호 표시용 '-' — 01012345678 → 010-1234-5678 (10자리 010-123-4567), 그 외 형식은 그대로 */
+export function formatPhone(p: string | null | undefined) {
+  const d = (p ?? '').replace(/\D/g, '')
+  if (/^01\d{9}$/.test(d)) return `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7)}`
+  if (/^01\d{8}$/.test(d)) return `${d.slice(0, 3)}-${d.slice(3, 6)}-${d.slice(6)}`
+  return p ?? ''
 }
 
 /** 완료된 시술 내역 메모 — 최신순, 'YYYY.MM.DD 시술명' */
@@ -23,5 +26,13 @@ export function contactVCard(name: string, phone: string, note = '') {
   const esc = (s: string) => s.replace(/[\\,;]/g, m => `\\${m}`)
   const v = (s: string) => esc(s).replace(/\r?\n/g, ' ')
   const n = esc(note).replace(/\r?\n/g, '\\n') // NOTE 줄바꿈은 \n 으로
-  return ['BEGIN:VCARD', 'VERSION:3.0', `FN:${v(name)}`, `N:${v(name)};;;;`, `TEL;TYPE=CELL:${hyphen(phone)}`, ...(n ? [`NOTE:${n}`] : []), 'END:VCARD', ''].join('\r\n')
+  return ['BEGIN:VCARD', 'VERSION:3.0', `FN:${v(name)}`, `N:${v(name)};;;;`, `TEL;TYPE=CELL:${formatPhone(phone)}`, ...(n ? [`NOTE:${n}`] : []), 'END:VCARD', ''].join('\r\n')
+}
+
+/** vCard 파일 내려받기 — 열면 연락처 앱으로 가져오기 (브라우저 전용) */
+export function downloadContact(name: string, phone: string, note = '') {
+  const url = URL.createObjectURL(new Blob([contactVCard(name, phone, note)], { type: 'text/x-vcard' }))
+  const a = Object.assign(document.createElement('a'), { href: url, download: `${name}.vcf` })
+  a.click()
+  setTimeout(() => URL.revokeObjectURL(url), 60_000) // 모바일은 바로 해제하면 다운로드가 취소될 수 있음
 }

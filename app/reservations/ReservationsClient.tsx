@@ -6,9 +6,10 @@ import { isoToKst, kstNow, addDays } from '@/lib/booking/time'
 import PaymentSheet from './PaymentSheet'
 import ReservationForm, { EMPTY_FORM, saveReservation, type Product, type PaymentMethod } from './ReservationForm'
 import { effectivePrice } from '@/lib/booking/pricing'
-import { confirmText, locationText, remindText, smsAllowed, smsBytes, smsStatus, SMS_MAX_BYTES } from '@/lib/booking/sms-templates'
+import { confirmText, locationText, remindText, smsAllowed, smsBytes, smsStatus, SMS_MAX_BYTES, LMS_MAX_BYTES } from '@/lib/booking/sms-templates'
 import { mergeRanges } from '@/lib/booking/closed-slots'
 import ClosedTimeSheet from './ClosedTimeSheet'
+import { downloadContact, formatPhone, treatmentNote } from '@/lib/contact'
 
 interface Reservation {
   id: number
@@ -127,33 +128,63 @@ function SmsBadges({ r }: { r: Reservation }) {
   )
 }
 
-/* 예약 상세 — 확정·전일 안내 문자 보내기 */
+/* 예약 상세 — 확정·전일 안내 문자 보내기 (보내기 전 이번 한 건만 문구 수정 가능) */
 function SmsPanel({ res, onSent }: { res: Reservation; onSent: (updated: Partial<Reservation>) => void }) {
   const [sending, setSending] = useState<string | null>(null)
   const [err, setErr] = useState('')
+  const [draft, setDraft] = useState<{ kind: typeof SMS_KINDS[number]; text: string } | null>(null)
   const hasPhone = /^01\d{8,9}$/.test((res.customer_phone ?? '').replace(/\D/g, ''))
   // 관리 시작 시각 전까지만 발송 가능
   const allowed = smsAllowed(res.start_at)
 
-  const send = async (k: typeof SMS_KINDS[number]) => {
+  const open = (k: typeof SMS_KINDS[number]) => {
     if (!smsAllowed(res.start_at)) { setErr('관리 시작 시간이 지나 문자를 보낼 수 없어요'); return }
-    const text = k.build(res.customer_name.trim(), res.start_at)
-    const bytes = smsBytes(text)
-    const st = kindStatus(res, k)
-    const head = st === 'sent' ? '이미 같은 예약 시간으로 보냈어요. 다시 보낼까요?\n\n' : ''
-    const warn = bytes > SMS_MAX_BYTES ? ` — ${SMS_MAX_BYTES}바이트 초과, 장문으로 발송될 수 있어요` : ''
-    if (!confirm(`${head}${k.label}를 보낼까요? (${bytes}바이트${warn})\n\n${text}`)) return
+    setErr('')
+    setDraft({ kind: k, text: k.build(res.customer_name.trim(), res.start_at) })
+  }
+
+  const send = async () => {
+    if (!draft) return
+    const k = draft.kind
+    const text = draft.text.trim()
+    if (!text) { setErr('문자 내용을 입력하세요'); return }
+    if (!smsAllowed(res.start_at)) { setErr('관리 시작 시간이 지나 문자를 보낼 수 없어요'); return }
+    if (smsBytes(text) > LMS_MAX_BYTES) { setErr(`문자가 너무 길어요 (${LMS_MAX_BYTES}바이트 이내)`); return }
     setSending(k.type); setErr('')
     try {
-      const r = await fetch(`/api/reservations/${res.id}/sms`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: k.type }) })
+      const r = await fetch(`/api/reservations/${res.id}/sms`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: k.type, text }) })
       const data = await r.json().catch(() => ({}))
       if (!r.ok) { setErr(data.error ?? '발송 실패'); return }
+      setDraft(null)
       onSent(data.reservation)
     } catch {
       setErr('네트워크 오류입니다. 다시 시도하세요')
     } finally {
       setSending(null)
     }
+  }
+
+  if (draft) {
+    const bytes = smsBytes(draft.text.trim())
+    const sentBefore = kindStatus(res, draft.kind) === 'sent'
+    return (
+      <div className="rounded-xl border border-brand-100 bg-brand-50/40 p-3 mb-4 space-y-2">
+        <p className="text-xs font-700 text-gray-500">✉ {draft.kind.label} — 내용 확인·수정</p>
+        {sentBefore && <p className="text-[11px] text-emerald-600">이미 같은 예약 시간으로 보냈어요. 다시 보낼 수 있어요.</p>}
+        {err && <p className="text-xs text-red-500 bg-red-50 rounded-lg px-3 py-2">{err}</p>}
+        <textarea value={draft.text} onChange={e => setDraft({ ...draft, text: e.target.value })} rows={5} autoFocus
+          className="w-full text-sm rounded-xl border border-brand-200 bg-white px-3 py-2 outline-none focus:border-brand-400" />
+        <p className={`text-[11px] ${bytes > SMS_MAX_BYTES ? 'text-orange-600' : 'text-gray-400'}`}>
+          {bytes}바이트{bytes > SMS_MAX_BYTES ? ` — ${SMS_MAX_BYTES}바이트 초과, 장문으로 발송될 수 있어요` : ''} · 이번 문자만 바뀌고 기본 문구는 그대로예요
+        </p>
+        <div className="flex gap-2">
+          <button type="button" onClick={() => { setDraft(null); setErr('') }} disabled={sending !== null} className="flex-1 py-2 rounded-xl text-sm font-600 text-gray-500 bg-gray-100">취소</button>
+          <button type="button" onClick={send} disabled={sending !== null || !draft.text.trim()} className="flex-1 py-2 rounded-xl text-sm font-700 text-white disabled:opacity-40" style={{ background: '#bc7659' }}>
+            {sending ? '보내는 중...' : '보내기'}
+          </button>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -170,7 +201,7 @@ function SmsPanel({ res, onSent }: { res: Reservation; onSent: (updated: Partial
           : st === 'stale' ? 'bg-orange-50 border-orange-300 text-orange-700' : 'bg-white border-emerald-200 text-gray-700'
         return (
           // 문자 이름·발송 상태·보내기를 하나의 버튼으로
-          <button key={k.type} type="button" onClick={() => send(k)} disabled={!hasPhone || !allowed || sending !== null}
+          <button key={k.type} type="button" onClick={() => open(k)} disabled={!hasPhone || !allowed || sending !== null}
             className={`block w-full sm:w-80 text-left rounded-xl border px-3 py-2 transition-colors disabled:opacity-40 active:scale-[0.99] ${tone}`}
             style={st === 'none' ? { background: '#bc7659' } : undefined}>
             <span className="block text-sm font-700">
@@ -230,7 +261,7 @@ function RegisterCustomer({ res, onPatched }: { res: Reservation; onPatched: (up
           {same.map(c => (
             <div key={c.id} className="flex items-center gap-2 bg-white rounded-lg border border-brand-100 px-2.5 py-1.5">
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-600 text-gray-800">{c.name} <span className="font-400 text-gray-400">{c.phone ? fmtPhone(c.phone) : '번호 없음'}</span></p>
+                <p className="text-xs font-600 text-gray-800">{c.name} <span className="font-400 text-gray-400">{c.phone ? formatPhone(c.phone) : '번호 없음'}</span></p>
                 <p className="text-[10px] text-gray-400">방문 {c.visits}회</p>
               </div>
               <button onClick={() => submit({ link_customer_id: c.id })} disabled={busy} className="shrink-0 px-2.5 py-1 rounded-lg text-[11px] font-700 text-brand-600 border border-brand-200 bg-white disabled:opacity-40">이 고객과 연결</button>
@@ -245,8 +276,6 @@ function RegisterCustomer({ res, onPatched }: { res: Reservation; onPatched: (up
     </div>
   )
 }
-
-const fmtPhone = (p: string) => (p.length === 11 ? `${p.slice(0, 3)}-${p.slice(3, 7)}-${p.slice(7)}` : p)
 
 const STATUS_LABEL = { scheduled: '예약', completed: '완료', cancelled: '취소' } as const
 const STATUS_COLOR = { scheduled: '#bc7659', completed: '#7c9a7e', cancelled: '#9ca3af' } as const
@@ -263,6 +292,18 @@ function ReservationDetail({ res, onClose, onStatusChange, onEdit, onComplete, o
   // 열 때 미연결이었으면 등록 후에도 완료 안내가 보이도록 유지
   const [showRegister] = useState(!res.customer_id)
   const [changing, setChanging] = useState<string | null>(null)
+  const [savingContact, setSavingContact] = useState(false)
+
+  // 휴대폰 연락처에 저장 — 고객과 연결돼 있으면 메모에 시술 내역
+  const saveToContacts = async () => {
+    if (!res.customer_phone) return
+    setSavingContact(true)
+    const customer = res.customer_id
+      ? await fetch(`/api/customers/${res.customer_id}`).then(r => (r.ok ? r.json() : null)).catch(() => null)
+      : null
+    setSavingContact(false)
+    downloadContact(customer?.name ?? res.customer_name, res.customer_phone, treatmentNote(customer?.reservations ?? []))
+  }
 
   const change = async (status: string) => {
     if (res.status === 'completed' && !confirm('완료된 예약입니다. 결제가 취소되고 선불·첫체험 차감분이 복원됩니다. 계속할까요?')) return
@@ -277,14 +318,24 @@ function ReservationDetail({ res, onClose, onStatusChange, onEdit, onComplete, o
       <div className="absolute inset-0 bg-black/30" onClick={onClose} />
       <div className="relative bg-white rounded-t-3xl px-4 pt-5 pb-8 max-h-[85vh] overflow-y-auto">
         <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-3" />
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h2 className="font-serif text-xl font-extrabold text-brand-700">{res.customer_name}</h2>
-            {res.customer_phone && <p className="text-xs text-gray-400">{res.customer_phone}</p>}
+        <div className="flex items-start justify-between gap-2 mb-4">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <h2 className="font-serif text-xl font-extrabold text-brand-700">{res.customer_name}</h2>
+              <span className="text-xs font-700 px-3 py-1 rounded-full" style={{ background: STATUS_BG[res.status], color: STATUS_COLOR[res.status] }}>
+                {STATUS_LABEL[res.status]}
+              </span>
+            </div>
+            {res.customer_phone && (
+              <div className="flex items-center gap-2 mt-0.5">
+                <p className="text-xs text-gray-400">{formatPhone(res.customer_phone)}</p>
+                <button onClick={saveToContacts} disabled={savingContact} className="px-2.5 py-1 rounded-lg text-[11px] font-600 text-brand-600 bg-brand-50 disabled:opacity-40">
+                  {savingContact ? '...' : '연락처 저장'}
+                </button>
+              </div>
+            )}
           </div>
-          <span className="text-xs font-700 px-3 py-1 rounded-full" style={{ background: STATUS_BG[res.status], color: STATUS_COLOR[res.status] }}>
-            {STATUS_LABEL[res.status]}
-          </span>
+          <button onClick={onClose} aria-label="닫기" className="shrink-0 w-9 h-9 rounded-full border border-gray-200 bg-white flex items-center justify-center text-gray-500 text-lg active:bg-gray-100">✕</button>
         </div>
         <div className="space-y-2 mb-4">
           <Row label="날짜/시간" value={`${kstDate(res.start_at)} ${fmtTime(res.start_at)} ~ ${fmtTime(res.end_at)}`} />
@@ -305,6 +356,11 @@ function ReservationDetail({ res, onClose, onStatusChange, onEdit, onComplete, o
         {showRegister && res.status !== 'cancelled' && <RegisterCustomer res={res} onPatched={onPatched} />}
         {res.status === 'scheduled' && <SmsPanel res={res} onSent={onPatched} />}
         {res.status === 'scheduled' && (
+          <button onClick={() => { onClose(); onEdit(res) }} className="w-full py-2.5 rounded-xl text-sm font-700 text-white mb-2" style={{ background: '#bc7659' }}>
+            ✏️ 예약 수정
+          </button>
+        )}
+        {res.status === 'scheduled' && (
           <div className="flex gap-2 mb-4">
             <button onClick={() => { onClose(); onComplete(res) }} disabled={!!changing} className="flex-1 py-2.5 rounded-xl text-sm font-700 text-white" style={{ background: '#7c9a7e' }}>
               ✓ 시술 완료 · 결제
@@ -317,11 +373,6 @@ function ReservationDetail({ res, onClose, onStatusChange, onEdit, onComplete, o
         {res.status !== 'scheduled' && (
           <button onClick={() => change('scheduled')} disabled={!!changing} className="w-full py-2.5 rounded-xl text-sm font-700 text-brand-500 border border-brand-200 mb-4">
             예약 복원
-          </button>
-        )}
-        {res.status === 'scheduled' && (
-          <button onClick={() => { onClose(); onEdit(res) }} className="w-full py-2 rounded-xl text-xs font-600 text-gray-500 bg-gray-50 mb-4">
-            ✏️ 예약 수정
           </button>
         )}
         {res.history && res.history.length > 0 && (

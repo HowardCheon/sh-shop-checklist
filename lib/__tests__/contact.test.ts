@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { contactVCard, treatmentNote } from '../contact'
+import { contactVCard, formatPhone, treatmentNote } from '../contact'
 
 describe('contactVCard', () => {
   it('이름·휴대폰 번호', () => {
@@ -38,5 +38,17 @@ describe('treatmentNote', () => {
   it('메모는 vCard NOTE 에 들어간다', () => {
     const note = '내역\n2026.10.02 스페셜, 팩'
     expect(contactVCard('홍길동', '01012345678', note)).toContain('NOTE:내역\\n2026.10.02 스페셜\\, 팩\r\n')
+  })
+})
+
+describe('formatPhone', () => {
+  it('휴대폰 번호에 하이픈', () => {
+    expect(formatPhone('01012345678')).toBe('010-1234-5678')
+    expect(formatPhone('010-1234-5678')).toBe('010-1234-5678')
+    expect(formatPhone('0111234567')).toBe('011-123-4567')
+  })
+  it('그 외 형식·빈 값은 그대로', () => {
+    expect(formatPhone('02-123-4567')).toBe('02-123-4567')
+    expect(formatPhone(null)).toBe('')
   })
 })

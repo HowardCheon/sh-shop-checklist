@@ -133,15 +133,16 @@ export default function DateTimePicker({ date, time, durationMin, excludeId, onC
             const free = ok(t)
             const past = date === today && t < nowTime
             const closedT = free && inClosed(t)
+            // 다른 예약과 겹치는 시각도 선택 가능 (저장 시 확인)
             return (
-              <button key={t} type="button" onClick={() => { if (free) { onChange(date, t); setShowOther(false) } }} disabled={!free}
+              <button key={t} type="button" onClick={() => { onChange(date, t); setShowOther(false) }}
                 className={`${slotCls} ${sel ? 'bg-brand-500 border-brand-500 text-white font-700'
-                  : !free ? 'border-dashed border-gray-200 bg-gray-50 text-gray-300'
+                  : !free ? 'border-dashed border-gray-200 bg-gray-50 text-gray-400 hover:bg-gray-100'
                   : closedT ? 'border-slate-300 bg-slate-100 text-slate-500'
                   : past ? 'border-gray-100 text-gray-400 hover:bg-brand-50'
                   : 'border-brand-100 text-gray-700 hover:bg-brand-50'}`}>
                 {t}
-                {!free && <span className="block text-[9px] leading-none">마감</span>}
+                {!free && <span className="block text-[9px] leading-none">예약 있음</span>}
                 {closedT && <span className="block text-[9px] leading-none">휴무시간</span>}
               </button>
             )
@@ -178,7 +179,7 @@ export default function DateTimePicker({ date, time, durationMin, excludeId, onC
         )}
         {time && (
           <p className={`mt-2 text-xs rounded-lg px-3 py-2 ${conflict ? 'bg-red-50 text-red-500' : closedConflict ? 'bg-slate-100 text-slate-600' : 'bg-brand-50 text-brand-600'}`}>
-            {conflict ? '⚠ 다른 예약과 겹쳐요. ' : closedConflict ? '⚠ 휴무시간과 겹쳐요(저장 시 확인). ' : '→ '}
+            {conflict ? '⚠ 다른 예약과 겹쳐요(저장 시 확인). ' : closedConflict ? '⚠ 휴무시간과 겹쳐요(저장 시 확인). ' : '→ '}
             {time} ~ {timeOf(minutesOf(time) + durationMin)} (정리 {timeOf(minutesOf(time) + durationMin + BUFFER_MIN)}까지)
             {!isSlot && !conflict && (outsideHours(date, time) ? ' · 영업시간 외' : ' · 직접 입력')}
           </p>

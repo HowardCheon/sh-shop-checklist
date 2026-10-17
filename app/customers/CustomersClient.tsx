@@ -5,6 +5,7 @@ import Link from 'next/link'
 import BrandHeader, { PageTitle } from '@/components/BrandHeader'
 import { calcStats, fmtDate, type Customer } from './customer-utils'
 import ReferrerPicker from './ReferrerPicker'
+import { formatPhone } from '@/lib/contact'
 
 const FAB = 'linear-gradient(135deg, #bc7659, #cb9175)'
 
@@ -85,7 +86,7 @@ export default function CustomersClient({ initialCustomers }: { initialCustomers
   }
 
   const sorted = [...customers]
-    .filter(c => !search || c.name.includes(search) || c.phone?.includes(search))
+    .filter(c => !search || c.name.includes(search) || c.phone?.includes(search) || (/\d/.test(search) && (c.phone ?? '').replace(/\D/g, '').includes(search.replace(/\D/g, ''))))
     .sort((a, b) => {
       const sa = calcStats(a), sb = calcStats(b)
       if (sortKey === 'name')   return a.name.localeCompare(b.name)
@@ -138,7 +139,7 @@ export default function CustomersClient({ initialCustomers }: { initialCustomers
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5">
                   <span className="font-serif text-base font-bold text-brand-800">{c.name}</span>
-                  {c.phone && <span className="text-xs text-gray-400">{c.phone}</span>}
+                  {c.phone && <span className="text-xs text-gray-400">{formatPhone(c.phone)}</span>}
                 </div>
                 <div className="flex gap-2 mt-0.5">
                   <span className="text-xs text-gray-400">방문 {s.completedCount}회</span>

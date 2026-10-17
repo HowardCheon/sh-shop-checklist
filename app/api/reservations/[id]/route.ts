@@ -44,7 +44,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if (timeChanged || restoring) {
     const times = blockTimes(nextStart, nextMins)
     const conflict = await findConflict(times.start_at, times.block_end_at, Number(id))
-    if (conflict) return NextResponse.json({ error: '예약 시간 충돌', conflict }, { status: 409 })
+    if (conflict && !body.allow_overlap) return NextResponse.json({ error: '예약 시간 충돌', conflict }, { status: 409 })
+    updates.allow_overlap = !!conflict // 관리자가 겹침을 확인한 예약만 DB 배타 제약에서 제외
     if (!body.allow_closed) {
       const closed = await findClosedOverlap(times.start_at, times.block_end_at)
       if (closed) return NextResponse.json({ error: `휴무시간(${closed.start}~${closed.end})과 겹칩니다`, closed_slot: closed }, { status: 409 })

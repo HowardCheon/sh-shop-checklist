@@ -6,8 +6,8 @@ import PrepaidPanel from './PrepaidPanel'
 import TrialPanel from './TrialPanel'
 import ReferralPanel from './ReferralPanel'
 import ReservationForm, { EMPTY_FORM, saveReservation, type Product, type PaymentMethod } from '../../reservations/ReservationForm'
-import { isoToKst } from '@/lib/booking/time'
-import { contactVCard, treatmentNote } from '@/lib/contact'
+import { isoToKst, kstNow } from '@/lib/booking/time'
+import { downloadContact, formatPhone, treatmentNote } from '@/lib/contact'
 import { calcStats, fmtDate, fmtTime, fmtPrice, STATUS_LABEL, STATUS_COLOR, STATUS_BG, type Customer, type CustomerHistory, type Reservation } from '../customer-utils'
 
 
@@ -18,6 +18,7 @@ export default function CustomerDetailClient({ initialCustomer, initialHistory, 
   // 방문 이력 수정 후 서버에서 새로 받은 데이터 반영
   useEffect(() => { setCustomer(initialCustomer) }, [initialCustomer])
   const [editResv, setEditResv] = useState<Reservation | null>(null)
+  const [booking, setBooking] = useState(false) // 이 고객으로 새 예약
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState({ name: initialCustomer.name, phone: initialCustomer.phone ?? '', memo: initialCustomer.memo ?? '' })
   const [saving, setSaving] = useState(false)
@@ -60,11 +61,7 @@ export default function CustomerDetailClient({ initialCustomer, initialHistory, 
   // 휴대폰 연락처에 저장 (메모: 시술 내역) — vCard 파일을 받아 열면 연락처 앱으로 가져오기
   const saveToContacts = () => {
     if (!customer.phone) return
-    const note = treatmentNote(customer.reservations ?? [])
-    const url = URL.createObjectURL(new Blob([contactVCard(customer.name, customer.phone, note)], { type: 'text/x-vcard' }))
-    const a = Object.assign(document.createElement('a'), { href: url, download: `${customer.name}.vcf` })
-    a.click()
-    setTimeout(() => URL.revokeObjectURL(url), 60_000) // 모바일은 바로 해제하면 다운로드가 취소될 수 있음
+    downloadContact(customer.name, customer.phone, treatmentNote(customer.reservations ?? []))
   }
 
   const inp = "w-full text-sm rounded-xl border border-gray-200 px-3 py-2.5 outline-none bg-gray-50 focus:bg-white focus:border-brand-300 transition-colors"
@@ -85,7 +82,7 @@ export default function CustomerDetailClient({ initialCustomer, initialHistory, 
               : <h2 className="font-serif text-2xl font-extrabold text-brand-700">{customer.name}</h2>}
             {editing
               ? <input className="text-xs text-gray-400 border-b border-gray-200 outline-none bg-transparent mt-0.5 w-40" placeholder="연락처" value={form.phone} onChange={set('phone')} />
-              : customer.phone && <p className="text-xs text-gray-400">{customer.phone}</p>}
+              : customer.phone && <p className="text-xs text-gray-400">{formatPhone(customer.phone)}</p>}
           </div>
           <div className="flex gap-1">
             {editing ? (
@@ -95,6 +92,7 @@ export default function CustomerDetailClient({ initialCustomer, initialHistory, 
               </>
             ) : (
               <>
+                <button onClick={() => setBooking(true)} className="px-3 py-1.5 rounded-lg text-xs font-700 text-white" style={{ background: '#bc7659' }}>예약하기</button>
                 {customer.phone && <button onClick={saveToContacts} className="px-3 py-1.5 rounded-lg text-xs text-brand-600 bg-brand-50">연락처 저장</button>}
                 <button onClick={() => setEditing(true)} className="px-3 py-1.5 rounded-lg text-xs text-gray-500 bg-gray-100">편집</button>
               </>
@@ -217,6 +215,21 @@ export default function CustomerDetailClient({ initialCustomer, initialHistory, 
           </div>
         )}
       </div>
+      {booking && (
+        <ReservationForm
+          date={kstNow().date}
+          products={products}
+          initial={{ ...EMPTY_FORM, customer_name: customer.name, customer_phone: formatPhone(customer.phone), customer_id: String(customer.id), date: kstNow().date }}
+          onCancel={() => setBooking(false)}
+          onSave={async (form: typeof EMPTY_FORM) => {
+            const e = await saveReservation({ form, products })
+            if (e) return e
+            setBooking(false)
+            router.refresh()
+            return null
+          }}
+        />
+      )}
       {editResv && (
         <ReservationForm
           editId={editResv.id}
