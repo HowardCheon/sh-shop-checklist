@@ -16,3 +16,8 @@ update sh_shop_reservations
 insert into sh_shop_products (category, service_group, slug, name, price, member_price, duration_min, sort_order, is_active)
 select 'service', 'FACE', 'first-trial-basic', '첫체험(베이직)', 39000, 39000, 50, 20, true
 where not exists (select 1 from sh_shop_products where slug = 'first-trial-basic');
+
+-- 첫체험(스톤 등 근막 순환케어) — BODY 맨 앞
+insert into sh_shop_products (category, service_group, slug, name, price, member_price, duration_min, sort_order, is_active)
+select 'service', 'BODY', 'first-trial-back', '첫체험(스톤 등 근막 순환케어)', 39000, 39000, 50, 10, true
+where not exists (select 1 from sh_shop_products where slug = 'first-trial-back');
