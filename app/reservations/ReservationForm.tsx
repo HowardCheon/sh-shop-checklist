@@ -115,7 +115,10 @@ export default function ReservationForm({ initial, products, date, onSave, onCan
       <div className="absolute inset-0 bg-black/30" onClick={onCancel} />
       <div className="relative bg-white rounded-t-3xl px-4 pt-5 pb-8 space-y-3 max-h-[90vh] overflow-y-auto">
         <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-2" />
-        <h2 className="font-serif text-lg font-extrabold text-brand-700">{editId ? '예약 수정' : '예약 추가'}</h2>
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="font-serif text-lg font-extrabold text-brand-700">{editId ? '예약 수정' : '예약 추가'}</h2>
+          <button onClick={onCancel} aria-label="닫기" className="shrink-0 w-9 h-9 rounded-full border border-gray-200 bg-white flex items-center justify-center text-gray-500 text-lg active:bg-gray-100">✕</button>
+        </div>
         {err && <p className="text-xs text-red-500 bg-red-50 rounded-lg px-3 py-2">{err}</p>}
         <div className="grid grid-cols-2 gap-2">
           <div className="col-span-2">

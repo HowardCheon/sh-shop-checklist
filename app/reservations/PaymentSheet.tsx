@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { splitDeduction } from '@/lib/booking/prepaid'
-import { SPECIAL_CARES, defaultTrialChoice, isTrialUnpaid, kstToday, trialStatus, type TrialKind, type TrialPackageRow } from '@/lib/booking/trial'
+import { SPECIAL_CARES, TRIAL_PACKAGES, defaultTrialChoice, isTrialUnpaid, kstToday, trialStatus, type TrialCode, type TrialKind, type TrialPackageRow } from '@/lib/booking/trial'
 import { inReferralWindow, referralReward } from '@/lib/referral'
 
 type Method = 'card' | 'cash' | 'transfer'
@@ -34,6 +34,9 @@ export default function PaymentSheet({ reservation, onDone, onCancel }: {
   const [amountBeforeTrial, setAmountBeforeTrial] = useState('')
   // 미결제 첫체험권 — 이번에 함께 결제 (기본 켜짐)
   const [payTrialNow, setPayTrialNow] = useState(true)
+  // 첫체험권 미등록 고객 — 이 화면에서 등록(미결제) 후 바로 차감
+  const [trialLoaded, setTrialLoaded] = useState(false)
+  const [registering, setRegistering] = useState(false)
 
   // 고객 선불 잔액 조회
   useEffect(() => {
@@ -53,7 +56,7 @@ export default function PaymentSheet({ reservation, onDone, onCancel }: {
     if (!reservation.customer_id) return
     fetch(`/api/customers/${reservation.customer_id}/trial`)
       .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d?.package) setTrialPkg(d.package) })
+      .then(d => { if (d?.package) setTrialPkg(d.package); if (d) setTrialLoaded(true) })
   }, [reservation.customer_id])
 
   // 소개자 — 적용 기간이면 결제 총액의 10% 적립 안내
@@ -68,13 +71,13 @@ export default function PaymentSheet({ reservation, onDone, onCancel }: {
   const trialSt = trialPkg ? trialStatus(trialPkg, kstToday()) : null
   const trialAvailable = !!trialSt && !trialSt.done
 
-  const toggleTrial = (on: boolean) => {
-    if (!trialSt) return
+  const toggleTrial = (on: boolean, st = trialSt) => {
+    if (!st) return
     setTrialOn(on)
     if (on) {
       const guess = defaultTrialChoice(reservation.product_name)
-      const canBasic = trialSt.basicLeft > 0
-      const canSpecial = trialSt.specialLeft > 0
+      const canBasic = st.basicLeft > 0
+      const canSpecial = st.specialLeft > 0
       if (guess?.kind === 'special' && canSpecial) { setTrialKind('special'); setTrialCare(guess.care) }
       else if (guess?.kind === 'basic' && canBasic) { setTrialKind('basic'); setTrialCare('') }
       else { setTrialKind(canBasic ? 'basic' : 'special'); setTrialCare('') }
@@ -83,6 +86,23 @@ export default function PaymentSheet({ reservation, onDone, onCancel }: {
     } else {
       setAmount(amountBeforeTrial || String(reservation.price ?? ''))
     }
+  }
+  const registerTrial = async (code: TrialCode) => {
+    const d = TRIAL_PACKAGES[code]
+    if (!confirm(`${d.label}(${won(d.price)})을 등록하고 이번 시술에 차감할까요?
+첫체험권 금액은 이번 완료 처리에 함께 결제됩니다.`)) return
+    setRegistering(true); setErr('')
+    const res = await fetch(`/api/customers/${reservation.customer_id}/trial`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code, pay_later: true }),
+    }).catch(() => null)
+    const data = res ? await res.json().catch(() => null) : null
+    setRegistering(false)
+    if (!res?.ok || !data?.package) { setErr(data?.error ?? '첫체험권 등록 실패'); return }
+    setTrialPkg(data.package)
+    setPayTrialNow(true)
+    toggleTrial(true, trialStatus(data.package, kstToday()))
   }
   const trialLabel = trialKind === 'basic' ? '베이직' : `스페셜${trialCare ? ` - ${trialCare}` : ''}`
 
@@ -122,7 +142,10 @@ export default function PaymentSheet({ reservation, onDone, onCancel }: {
       <div className="absolute inset-0 bg-black/30" onClick={onCancel} />
       <div className="relative bg-white rounded-t-3xl px-4 pt-5 pb-8 space-y-3 max-h-[90vh] overflow-y-auto">
         <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-2" />
-        <h2 className="font-serif text-lg font-extrabold text-brand-700">시술 완료 · 결제</h2>
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="font-serif text-lg font-extrabold text-brand-700">시술 완료 · 결제</h2>
+          <button onClick={onCancel} aria-label="닫기" className="shrink-0 w-9 h-9 rounded-full border border-gray-200 bg-white flex items-center justify-center text-gray-500 text-lg active:bg-gray-100">✕</button>
+        </div>
         <p className="text-xs text-gray-500">{reservation.customer_name} · {reservation.product_name ?? '시술'}</p>
         {err && <p className="text-xs text-red-500 bg-red-50 rounded-lg px-3 py-2">{err}</p>}
 
@@ -161,6 +184,24 @@ export default function PaymentSheet({ reservation, onDone, onCancel }: {
                 <p className="text-[11px] text-amber-700">첫체험권은 이미 결제된 상품이라 결제 금액을 0원으로 바꿨어요. 추가 비용이 있으면 금액을 고쳐 주세요.</p>
               </>
             )}
+          </div>
+        )}
+
+        {reservation.customer_id && trialLoaded && !trialPkg && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3 space-y-2">
+            <p className="text-xs font-700 text-amber-800">🎁 첫체험권 등록 후 사용</p>
+            <div className="flex gap-1.5">
+              {(Object.keys(TRIAL_PACKAGES) as TrialCode[]).map(code => {
+                const d = TRIAL_PACKAGES[code]
+                return (
+                  <button key={code} type="button" disabled={registering} onClick={() => registerTrial(code)}
+                    className="flex-1 py-1.5 rounded-lg text-xs font-600 border disabled:opacity-40" style={{ color: '#a5624a', borderColor: '#f3e6de', background: '#fff' }}>
+                    {d.label} {won(d.price)}
+                    <span className="block text-[9px] text-amber-600">베이직 {d.basic} + 스페셜 {d.special} · {d.months}개월</span>
+                  </button>
+                )
+              })}
+            </div>
           </div>
         )}
 
