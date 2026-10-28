@@ -34,7 +34,10 @@ export default function SmsLogList({ logs }: { logs: SmsLog[] }) {
               const expanded = open === l.id
               return (
                 <li key={l.id} className={`rounded-xl border px-3 py-2 ${l.status === 'failed' ? 'border-red-200 bg-red-50/50' : 'border-brand-100 bg-white/85'}`}>
-                  <button type="button" onClick={() => setOpen(expanded ? null : l.id)} className="w-full text-left">
+                  {/* button 안 텍스트는 드래그 선택이 안 되므로 div — 텍스트를 선택 중이면 펼침/접힘 토글 안 함 */}
+                  <div role="button" tabIndex={0} onClick={() => { if (!window.getSelection()?.toString()) setOpen(expanded ? null : l.id) }}
+                    onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(expanded ? null : l.id) } }}
+                    className="w-full text-left cursor-pointer select-text">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="text-[11px] text-gray-400 shrink-0">{fmtAt(l.created_at)}</span>
                       <span className={`text-[10px] font-700 px-2 py-0.5 rounded-full shrink-0 ${l.kind === 'confirm' ? 'bg-brand-50 text-brand-600' : l.kind === 'remind' ? 'bg-amber-50 text-amber-700' : 'bg-sky-50 text-sky-700'}`}>{KIND_LABEL[l.kind]}</span>
@@ -47,7 +50,7 @@ export default function SmsLogList({ logs }: { logs: SmsLog[] }) {
                     {l.status === 'failed' && l.reason && <p className="text-[11px] text-red-500 mt-0.5">사유: {l.reason}</p>}
                     {/* 접힌 상태는 줄바꿈을 공백으로 이어 한 줄 미리보기, 펼치면 원문 그대로 */}
                     <p className={`text-xs text-gray-500 mt-1 ${expanded ? 'whitespace-pre-line' : 'truncate'}`}>{expanded ? l.text : l.text.replace(/\n/g, ' ')}</p>
-                  </button>
+                  </div>
                   {expanded && l.reservation_id && l.reservation && (
                     <Link href={`/?date=${isoToKst(l.reservation.start_at).date}&open=${l.reservation_id}`} className="inline-block mt-1.5 text-[11px] font-600 text-brand-500 underline">
                       예약 보기 ›

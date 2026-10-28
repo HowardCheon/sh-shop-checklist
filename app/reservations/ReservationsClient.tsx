@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useCallback, useEffect } from 'react'
+import Link from 'next/link'
 import BrandHeader from '@/components/BrandHeader'
 import { isoToKst, kstNow, addDays } from '@/lib/booking/time'
 import PaymentSheet from './PaymentSheet'
@@ -321,7 +322,11 @@ function ReservationDetail({ res, onClose, onStatusChange, onEdit, onComplete, o
         <div className="flex items-start justify-between gap-2 mb-4">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <h2 className="font-serif text-xl font-extrabold text-brand-700">{res.customer_name}</h2>
+              <h2 className="font-serif text-xl font-extrabold text-brand-700">
+                {res.customer_id
+                  ? <Link href={`/customers/${res.customer_id}`} className="underline decoration-brand-200 underline-offset-4">{res.customer_name}</Link>
+                  : res.customer_name}
+              </h2>
               <span className="text-xs font-700 px-3 py-1 rounded-full" style={{ background: STATUS_BG[res.status], color: STATUS_COLOR[res.status] }}>
                 {STATUS_LABEL[res.status]}
               </span>
