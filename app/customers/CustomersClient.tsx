@@ -59,7 +59,7 @@ function CustomerForm({ customers, onSave, onCancel }: {
 }
 
 /* ── 메인 클라이언트 ── */
-type SortKey = 'name' | 'count' | 'amount' | 'cancel'
+type SortKey = 'no' | 'name' | 'count' | 'amount' | 'cancel'
 
 export default function CustomersClient({ initialCustomers }: { initialCustomers: Customer[] }) {
   const [customers, setCustomers] = useState<Customer[]>(initialCustomers)
@@ -91,10 +91,15 @@ export default function CustomersClient({ initialCustomers }: { initialCustomers
       .catch(() => setCustomers(prev => prev.filter(c => c.id !== tempId)))
   }
 
+  // 숫자를 입력하면 고객번호(일치)와 휴대폰번호(포함) 둘 다 검색 — 고객번호 일치가 맨 위
+  const digits = /\d/.test(search) ? search.replace(/\D/g, '') : ''
+  const noHit = (c: Customer) => digits !== '' && c.customer_no === Number(digits)
   const sorted = [...customers]
-    .filter(c => !search || c.name.includes(search) || c.phone?.includes(search) || (/\d/.test(search) && (c.phone ?? '').replace(/\D/g, '').includes(search.replace(/\D/g, ''))))
+    .filter(c => !search || c.name.includes(search) || c.phone?.includes(search) || noHit(c) || (digits !== '' && (c.phone ?? '').replace(/\D/g, '').includes(digits)))
     .sort((a, b) => {
+      if (noHit(a) !== noHit(b)) return noHit(a) ? -1 : 1
       const sa = calcStats(a), sb = calcStats(b)
+      if (sortKey === 'no')     return (a.customer_no ?? Infinity) - (b.customer_no ?? Infinity)
       if (sortKey === 'name')   return a.name.localeCompare(b.name)
       if (sortKey === 'count')  return sb.completedCount - sa.completedCount
       if (sortKey === 'amount') return sb.totalAmount - sa.totalAmount
@@ -104,6 +109,7 @@ export default function CustomersClient({ initialCustomers }: { initialCustomers
 
   const SORTS: { key: SortKey; label: string }[] = [
     { key: 'name', label: '이름순' },
+    { key: 'no', label: '번호순' },
     { key: 'count', label: '횟수순' },
     { key: 'amount', label: '금액순' },
     { key: 'cancel', label: '취소순' },
@@ -115,7 +121,7 @@ export default function CustomersClient({ initialCustomers }: { initialCustomers
         <PageTitle title="고객 관리" sub={`등록 고객 ${customers.length}명`} />
         <input
           className="w-full text-sm rounded-full border border-brand-200 px-4 py-2 mt-3 outline-none bg-white/80 placeholder:text-brand-300 focus:border-brand-400 focus:bg-white transition-colors mb-2"
-          placeholder="이름 또는 연락처 검색..."
+          placeholder="이름, 고객번호 또는 연락처 검색..."
           value={search}
           onChange={e => setSearch(e.target.value)}
         />
