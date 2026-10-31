@@ -27,6 +27,21 @@ export function candidateTimes(date: string): string[] {
   return times
 }
 
+/** 네이버 예약 '간단예약관리'에서 꺼야 할 30분 칸 — 네이버는 소요시간을 몰라 직접 닫아야 함.
+ *  예약 시간(+정리)과 겹치는 칸 + 가장 짧은 시술(50분)로 들어와도 겹치는 앞 칸. biz_auto lib/naver-slots.ts 와 같은 규칙 */
+export const NAVER_MIN_SERVICE_MIN = 50
+export function naverSlotsToClose(date: string, time: string, durationMin: number): string[] {
+  const hours = businessHours(date)
+  if (!hours) return []
+  const start = minutesOf(time)
+  const end = start + durationMin + BUFFER_MIN
+  const slots: string[] = []
+  for (let m = minutesOf(hours.open); m < minutesOf(hours.close); m += SLOT_MIN) {
+    if (m < end && m + NAVER_MIN_SERVICE_MIN + BUFFER_MIN > start) slots.push(timeOf(m))
+  }
+  return slots
+}
+
 /** 시작 시각이 규칙상 불가능하면 오류를, 가능하면 null 을 반환 (휴무일 테이블은 호출측에서 확인) */
 export function startError(date: string, time: string, now: Date = new Date()): BookingError | null {
   if (!isValidDate(date) || !isValidTime(time)) {

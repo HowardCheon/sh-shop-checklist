@@ -75,6 +75,10 @@ describe('newReservationMessage', () => {
     expect(text).toContain('10월 6일 (화) 14:00 ~ 15:00')
     expect(text).toContain('베이직 피부관리 (60분) · 50,000원 (회원가)')
     expect(text).toContain('요청사항: 첫 방문입니다')
+    expect(text).not.toContain('네이버')
+  })
+  it('네이버 끌 칸이 있으면 안내 줄 추가', () => {
+    expect(newReservationMessage({ ...base, naverSlots: ['13:30', '14:00'] })).toContain('🔒 네이버 간단예약관리에서 끄기: 13:30 · 14:00')
   })
   it('비회원·신규, 요청사항 없음', () => {
     const text = newReservationMessage({ ...base, isMember: false, newCustomer: true, price: 80000, message: null })

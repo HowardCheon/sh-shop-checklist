@@ -28,6 +28,7 @@ export type NewReservationInfo = {
   isMember: boolean
   newCustomer: boolean
   message: string | null
+  naverSlots?: string[]   // 네이버 예약 운영 중일 때 간단예약관리에서 끌 칸
 }
 
 export function newReservationMessage(r: NewReservationInfo) {
@@ -38,6 +39,7 @@ export function newReservationMessage(r: NewReservationInfo) {
     `${escape(r.program)} (${r.durationMin}분) · ${(r.price ?? 0).toLocaleString('ko-KR')}원 (${r.isMember ? '회원가' : '비회원가'})`,
   ]
   if (r.message) lines.push(`요청사항: ${escape(r.message)}`)
+  if (r.naverSlots?.length) lines.push('', `🔒 네이버 간단예약관리에서 끄기: ${r.naverSlots.join(' · ')}`)
   return lines.join('\n')
 }
 

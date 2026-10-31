@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { businessHours, candidateTimes, startError, isEditable } from '../rules'
+import { businessHours, candidateTimes, startError, isEditable, naverSlotsToClose } from '../rules'
 
 // 기준 시각: 2026-10-05(월) 08:00 KST
 const NOW = new Date('2026-10-04T23:00:00Z')
@@ -43,5 +43,16 @@ describe('rules', () => {
   it('수정/취소는 예약일이 오늘보다 뒤일 때만 가능', () => {
     expect(isEditable('2026-10-06', NOW)).toBe(true)
     expect(isEditable('2026-10-05', NOW)).toBe(false)
+  })
+})
+
+describe('naverSlotsToClose', () => {
+  it('예약 시간(+정리 10분)과 겹치는 칸 + 50분 시술로도 겹치는 앞 칸', () => {
+    expect(naverSlotsToClose('2026-11-03', '13:00', 80)).toEqual(['12:30', '13:00', '13:30', '14:00'])
+  })
+  it('영업 시작 전 칸은 제외, 마감·휴무 반영', () => {
+    expect(naverSlotsToClose('2026-11-03', '10:00', 50)).toEqual(['10:00', '10:30'])
+    expect(naverSlotsToClose('2026-11-07', '16:00', 120)).toEqual(['15:30', '16:00', '16:30'])
+    expect(naverSlotsToClose('2026-11-08', '10:00', 60)).toEqual([])
   })
 })

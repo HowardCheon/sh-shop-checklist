@@ -2,6 +2,7 @@ import { NextRequest, after } from 'next/server'
 import { publicApi, readJson } from '@/lib/public-api'
 import { createReservation, listReservations } from '@/lib/booking/service'
 import { normalizePhone } from '@/lib/booking/phone'
+import { naverSlotsToClose } from '@/lib/booking/rules'
 import { newReservationMessage, sendTelegram } from '@/lib/telegram'
 
 /* 예정된 예약 목록 — ?name=&phone= (둘 다 일치해야 조회) */
@@ -31,6 +32,8 @@ export const POST = publicApi(async (req: NextRequest) => {
     isMember: r.is_member,
     newCustomer: r.new_customer,
     message: r.message,
-  }), { text: '📋 예약 확인하기', url: `${adminUrl}/?date=${r.date}&open=${r.id}` }))
+    // 네이버 예약을 열면 NAVER_BOOKING_SYNC=on — 네이버 쪽 칸을 닫으라고 안내
+    naverSlots: process.env.NAVER_BOOKING_SYNC === 'on' ? naverSlotsToClose(r.date, r.start_time, r.program.duration_min ?? 0) : undefined,
+  }),{ text: '📋 예약 확인하기', url: `${adminUrl}/?date=${r.date}&open=${r.id}` }))
   return r
 }, 201)
