@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import BrandHeader, { PageTitle } from '@/components/BrandHeader'
 import { calcStats, fmtDate, type Customer } from './customer-utils'
+import CustomerNo from '@/components/CustomerNo'
 import ReferrerPicker from './ReferrerPicker'
 import { formatPhone } from '@/lib/contact'
 
@@ -71,6 +72,11 @@ export default function CustomersClient({ initialCustomers }: { initialCustomers
 
   /* 낙관적 추가 */
   const handleAdd = (form: NewCustomer) => {
+    const same = customers.filter(c => c.id > 0 && c.name === form.name.trim())
+    if (same.length > 0) {
+      const list = same.map(c => `· ${c.name} (${c.phone ? formatPhone(c.phone) : '번호 없음'})`).join('\n')
+      if (!confirm(`같은 이름의 고객이 이미 있습니다.\n${list}\n\n그래도 새 고객으로 등록할까요?`)) return
+    }
     const tempId = -Date.now()
     const optimistic: Customer = { id: tempId, name: form.name, phone: form.phone || null, memo: form.memo || null, created_at: new Date().toISOString(), updated_at: new Date().toISOString(), reservations: [] }
     setCustomers(prev => [...prev, optimistic])
@@ -133,9 +139,7 @@ export default function CustomersClient({ initialCustomers }: { initialCustomers
           const s = calcStats(c)
           return (
             <Link key={c.id} href={`/customers/${c.id}`} aria-disabled={c.id < 0} onClick={e => { if (c.id < 0) e.preventDefault() }} className="w-full text-left bg-white/85 rounded-2xl border border-brand-100 px-4 py-3 shadow-sm flex items-center gap-3 active:bg-brand-50 transition-colors">
-              <div className="w-10 h-10 rounded-full flex items-center justify-center font-serif text-base font-bold text-brand-600 bg-brand-50 border border-brand-200 shrink-0">
-                {c.name[0]}
-              </div>
+              <CustomerNo no={c.customer_no} />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5">
                   <span className="font-serif text-base font-bold text-brand-800">{c.name}</span>

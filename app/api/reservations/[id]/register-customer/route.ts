@@ -1,13 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { normalizePhone } from '@/lib/booking/phone'
-import { findOrCreateCustomer } from '@/lib/booking/repo'
+import { findCustomerByPhone, findOrCreateCustomer } from '@/lib/booking/repo'
 import { recordCustomerHistory } from '@/lib/booking/admin'
 
 /* 예약자 고객 등록 — 고객과 연결되지 않은 예약을 고객으로 등록·연결
- * {}                     : 예약자명으로 등록 (같은 이름 고객이 있으면 409 + same_name 후보 목록)
+ * {}                     : 예약자명으로 등록 (새로 만들어야 하는데 같은 이름 고객이 있으면 409 + same_name 후보 목록)
  * { link_customer_id }   : 기존 고객과 연결 (고객 연락처를 예약에 채움)
  * { force_new: true }    : 같은 이름이 있어도 새 고객으로 등록 */
+/** 같은 이름 고객이 있으면 409 + same_name 후보 목록 (방문 횟수 포함) */
+async function sameNameResponse(name: string) {
+  const { data: same } = await supabase.from('sh_shop_customers').select('id, name, phone, reservations:sh_shop_reservations(id, status)').eq('name', name).limit(10)
+  if (!same || same.length === 0) return null
+  return NextResponse.json({
+    error: '같은 이름의 고객이 있습니다',
+    same_name: same.map(c => ({
+      id: c.id, name: c.name, phone: c.phone,
+      visits: (c.reservations as { status: string }[] | null ?? []).filter(x => x.status === 'completed').length,
+    })),
+  }, { status: 409 })
+}
+
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const body = await req.json().catch(() => ({}))
@@ -28,23 +41,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     // 예약에 올바른 휴대폰 번호가 있으면 번호 기준으로 찾거나 생성
     let phone: string | null = null
     try { phone = normalizePhone(resv.customer_phone) } catch { /* 번호 없음 */ }
+    // 새로 만들어야 하는데 같은 이름 고객이 있으면 고르게 함 (번호 없이 등록된 같은 분일 수 있음)
+    if (!body.force_new && !(phone && await findCustomerByPhone(phone))) {
+      const same = await sameNameResponse(name)
+      if (same) return same
+    }
     if (phone) {
       const r = await findOrCreateCustomer(name, phone)
       customer = r.customer
       created = r.created
     } else {
-      if (!body.force_new) {
-        const { data: same } = await supabase.from('sh_shop_customers').select('id, name, phone, reservations:sh_shop_reservations(id, status)').eq('name', name).limit(10)
-        if (same && same.length > 0) {
-          return NextResponse.json({
-            error: '같은 이름의 고객이 있습니다',
-            same_name: same.map(c => ({
-              id: c.id, name: c.name, phone: c.phone,
-              visits: (c.reservations as { status: string }[] | null ?? []).filter(x => x.status === 'completed').length,
-            })),
-          }, { status: 409 })
-        }
-      }
       const { data, error } = await supabase.from('sh_shop_customers').insert({ name, phone: null }).select('id, name, phone').single()
       if (error || !data) return NextResponse.json({ error: '고객 등록 실패' }, { status: 500 })
       customer = data

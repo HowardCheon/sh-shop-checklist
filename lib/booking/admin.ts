@@ -2,7 +2,7 @@
 import { supabase } from '@/lib/supabase'
 import { BookingError } from './errors'
 import { normalizePhone } from './phone'
-import { findOrCreateCustomer, listClosedTimes } from './repo'
+import { findCustomerByPhone, findOrCreateCustomer, listClosedTimes } from './repo'
 import { overlapsClosed } from './closed-slots'
 import { isoToKst } from './time'
 import { BUFFER_MIN } from './rules'
@@ -39,8 +39,9 @@ export async function findConflict(startAt: string, blockEndAt: string, excludeI
 /**
  * 예약을 고객과 연결 — 관리자가 고객을 직접 선택했으면(customerId) 그 고객으로,
  * 아니면 연락처가 휴대폰 번호일 때 정규화 후 고객을 찾거나 생성(그 외에는 연결하지 않음)
+ * 새로 생성해야 하는데 같은 이름 고객이 있으면 생성하지 않고 sameName 후보 반환 (allowSameName 이면 그대로 생성)
  */
-export async function linkCustomer(name: string, rawPhone: unknown, selectedId?: unknown) {
+export async function linkCustomer(name: string, rawPhone: unknown, selectedId?: unknown, allowSameName = false) {
   const id = Number(selectedId)
   if (Number.isInteger(id) && id > 0) {
     const { data: picked } = await supabase.from('sh_shop_customers').select('id, phone').eq('id', id).maybeSingle()
@@ -57,8 +58,19 @@ export async function linkCustomer(name: string, rawPhone: unknown, selectedId?:
     if (e instanceof BookingError) return { phone: typeof rawPhone === 'string' && rawPhone.trim() ? rawPhone.trim() : null, customerId: null }
     throw e
   }
+  if (!allowSameName && !(await findCustomerByPhone(phone))) {
+    const sameName = await findSameNameCustomers(name)
+    if (sameName.length > 0) return { phone, customerId: null, sameName }
+  }
   const { customer } = await findOrCreateCustomer(name, phone)
   return { phone, customerId: customer.id }
+}
+
+/** 같은 이름의 고객 (중복 등록 확인용) */
+export async function findSameNameCustomers(name: string) {
+  const { data, error } = await supabase.from('sh_shop_customers').select('id, name, phone').eq('name', name.trim()).limit(10)
+  if (error) throw error
+  return (data ?? []) as { id: number; name: string; phone: string | null }[]
 }
 
 export async function recordCustomerHistory(customerId: number | null, row: {

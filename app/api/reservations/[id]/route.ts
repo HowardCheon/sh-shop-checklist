@@ -9,7 +9,7 @@ const METHODS: PaymentMethod[] = ['card', 'cash', 'transfer']
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const [resRes, histRes] = await Promise.all([
-    supabase.from('sh_shop_reservations').select('*, customer:sh_shop_customers(prepaid_cash, prepaid_bonus), product:sh_shop_products(price, member_price)').eq('id', id).single(),
+    supabase.from('sh_shop_reservations').select('*, customer:sh_shop_customers(prepaid_cash, prepaid_bonus, customer_no), product:sh_shop_products(price, member_price)').eq('id', id).single(),
     supabase.from('sh_shop_reservation_history').select('*').eq('reservation_id', id).order('changed_at', { ascending: true }),
   ])
   if (resRes.error) return NextResponse.json({ error: '조회 실패' }, { status: 404 })
@@ -58,7 +58,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
   if (customer_name !== undefined) { updates.customer_name = customer_name.trim(); if (customer_name !== existing.customer_name) changes.push(`고객명 변경`) }
   if (customer_phone !== undefined) {
-    const { phone, customerId } = await linkCustomer((customer_name ?? existing.customer_name).trim(), customer_phone, customer_id)
+    const { phone, customerId, sameName } = await linkCustomer((customer_name ?? existing.customer_name).trim(), customer_phone, customer_id, !!body.allow_same_name)
+    if (sameName) return NextResponse.json({ error: '같은 이름의 고객이 있습니다', same_name: sameName }, { status: 409 })
     updates.customer_phone = phone
     updates.customer_id = customerId
   }

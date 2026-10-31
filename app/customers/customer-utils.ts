@@ -16,6 +16,7 @@ export interface Reservation {
 
 export interface Customer {
   id: number
+  customer_no?: number
   name: string
   phone: string | null
   memo: string | null

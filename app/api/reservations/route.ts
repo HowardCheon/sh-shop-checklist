@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
 
   let query = supabase
     .from('sh_shop_reservations')
-    .select('*, customer:sh_shop_customers(prepaid_cash, prepaid_bonus), product:sh_shop_products(price, member_price)')
+    .select('*, customer:sh_shop_customers(prepaid_cash, prepaid_bonus, customer_no), product:sh_shop_products(price, member_price)')
     .order('start_at', { ascending: true })
 
   if (from) query = query.gte('start_at', from)
@@ -42,7 +42,8 @@ export async function POST(req: NextRequest) {
   }
 
   const name = customer_name.trim()
-  const { phone, customerId } = await linkCustomer(name, customer_phone, customer_id)
+  const { phone, customerId, sameName } = await linkCustomer(name, customer_phone, customer_id, !!body.allow_same_name)
+  if (sameName) return NextResponse.json({ error: '같은 이름의 고객이 있습니다', same_name: sameName }, { status: 409 })
 
   const { data, error } = await supabase
     .from('sh_shop_reservations')

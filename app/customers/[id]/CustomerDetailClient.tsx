@@ -9,6 +9,7 @@ import ReservationForm, { EMPTY_FORM, saveReservation, type Product, type Paymen
 import { isoToKst, kstNow } from '@/lib/booking/time'
 import { downloadContact, formatPhone, treatmentNote } from '@/lib/contact'
 import { calcStats, fmtDate, fmtTime, fmtPrice, STATUS_LABEL, STATUS_COLOR, STATUS_BG, type Customer, type CustomerHistory, type Reservation } from '../customer-utils'
+import CustomerNo from '@/components/CustomerNo'
 
 
 /* ── 고객 상세 페이지 ── */
@@ -79,7 +80,7 @@ export default function CustomerDetailClient({ initialCustomer, initialHistory, 
           <div>
             {editing
               ? <input className="text-lg font-700 text-gray-900 border-b-2 border-brand-300 outline-none bg-transparent" value={form.name} onChange={set('name')} />
-              : <h2 className="font-serif text-2xl font-extrabold text-brand-700">{customer.name}</h2>}
+              : <div className="flex items-center gap-2"><CustomerNo no={customer.customer_no} /><h2 className="font-serif text-2xl font-extrabold text-brand-700">{customer.name}</h2></div>}
             {editing
               ? <input className="text-xs text-gray-400 border-b border-gray-200 outline-none bg-transparent mt-0.5 w-40" placeholder="연락처" value={form.phone} onChange={set('phone')} />
               : customer.phone && <p className="text-xs text-gray-400">{formatPhone(customer.phone)}</p>}

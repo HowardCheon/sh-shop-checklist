@@ -11,6 +11,7 @@ import { confirmText, locationText, remindText, smsAllowed, smsBytes, smsStatus,
 import { mergeRanges } from '@/lib/booking/closed-slots'
 import ClosedTimeSheet from './ClosedTimeSheet'
 import { downloadContact, formatPhone, treatmentNote } from '@/lib/contact'
+import CustomerNo from '@/components/CustomerNo'
 
 interface Reservation {
   id: number
@@ -26,7 +27,7 @@ interface Reservation {
   status: 'scheduled' | 'completed' | 'cancelled'
   source?: 'admin' | 'external'
   price_type?: 'member' | 'regular' | null
-  customer?: { prepaid_cash: number; prepaid_bonus: number } | null
+  customer?: { prepaid_cash: number; prepaid_bonus: number; customer_no?: number } | null
   product?: { price: number; member_price: number | null } | null
   memo: string | null
   customer_message?: string | null
@@ -322,6 +323,7 @@ function ReservationDetail({ res, onClose, onStatusChange, onEdit, onComplete, o
         <div className="flex items-start justify-between gap-2 mb-4">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
+              <CustomerNo no={res.customer?.customer_no} />
               <h2 className="font-serif text-xl font-extrabold text-brand-700">
                 {res.customer_id
                   ? <Link href={`/customers/${res.customer_id}`} className="underline decoration-brand-200 underline-offset-4">{res.customer_name}</Link>
@@ -706,6 +708,7 @@ export default function ReservationsClient({ initialReservations, initialDate, o
                   <div className="flex items-start justify-between">
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
+                        <CustomerNo no={r.customer?.customer_no} size="sm" />
                         <span className={`text-sm font-700 whitespace-nowrap ${off ? 'text-gray-400 line-through' : 'text-gray-800'}`}>{r.customer_name}</span>
                         {off
                           ? <span className="text-[11px] font-800 px-2.5 py-0.5 rounded-full whitespace-nowrap bg-gray-500 text-white">✕ 취소된 예약</span>

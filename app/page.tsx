@@ -19,7 +19,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
 
   // 새로고침해도 그날의 휴무일·휴무시간이 바로 보이도록 함께 조회
   const [resResult, prodResult, closedDateResult, closedSlotResult] = await Promise.all([
-    supabase.from('sh_shop_reservations').select('*, customer:sh_shop_customers(prepaid_cash, prepaid_bonus), product:sh_shop_products(price, member_price)').gte('start_at', from).lte('start_at', to).order('start_at'),
+    supabase.from('sh_shop_reservations').select('*, customer:sh_shop_customers(prepaid_cash, prepaid_bonus, customer_no), product:sh_shop_products(price, member_price)').gte('start_at', from).lte('start_at', to).order('start_at'),
     supabase.from('sh_shop_products').select('*').eq('category', 'service').eq('is_active', true).order('sort_order').order('created_at'),
     supabase.from('sh_shop_closed_dates').select('date, reason').eq('date', day),
     supabase.from('sh_shop_closed_slots').select('time').eq('date', day).order('time'),

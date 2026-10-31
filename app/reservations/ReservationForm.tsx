@@ -225,7 +225,7 @@ export async function saveReservation({ form, products, editId, paymentMethod }:
     method: editId ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
   })
   // 다른 예약·관리자 휴무시간과 겹치면 하나씩 확인 후 그대로 저장
-  const allow: { allow_overlap?: true; allow_closed?: true } = {}
+  const allow: { allow_overlap?: true; allow_closed?: true; allow_same_name?: true } = {}
   for (;;) {
     const res = await post({ ...payload, ...allow })
     const data = await res.json().catch(() => ({}))
@@ -237,6 +237,10 @@ export async function saveReservation({ form, products, editId, paymentMethod }:
     } else if (res.status === 409 && data.closed_slot && !allow.allow_closed) {
       if (!confirm(`휴무시간(${data.closed_slot.start}~${data.closed_slot.end})과 겹칩니다. 그래도 저장할까요?`)) return '휴무시간과 겹쳐 저장하지 않았어요'
       allow.allow_closed = true
+    } else if (res.status === 409 && data.same_name && !allow.allow_same_name) {
+      const list = (data.same_name as { name: string; phone: string | null }[]).map(c => `· ${c.name} (${c.phone ? formatPhone(c.phone) : '번호 없음'})`).join('\n')
+      if (!confirm(`같은 이름의 고객이 이미 있습니다.\n${list}\n\n그래도 새 고객으로 등록할까요?\n(같은 분이면 '취소' 후 고객 검색에서 기존 고객을 선택하세요)`)) return '같은 이름의 고객이 있어 저장하지 않았어요'
+      allow.allow_same_name = true
     } else {
       return data.error ?? '저장 실패'
     }
