@@ -7,7 +7,7 @@ import { fetchDailyReport } from '@/lib/ga'
 import { countOnlineBookings } from '@/lib/booking/repo'
 import { kstYesterday, accessReportMessage } from '@/lib/daily-report'
 
-/* 매일 09:00(KST) Vercel Cron
+/* 매일 07:30(KST) cron-job.org 호출 (Bearer CRON_SECRET) — Vercel Hobby 크론은 ±59분이라 사용 안 함
  * 1) 무료 Supabase 프로젝트 일시정지(7일 무요청) 방지
  * 2) 솔라피 잔액 + 어제 홈페이지 접속 리포트를 텔레그램 알림방으로 보고 */
 export async function GET(req: NextRequest) {
