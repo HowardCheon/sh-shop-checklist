@@ -18,6 +18,7 @@ const SETS = {
     'TB_LOCATION', 'MSG_LIST', 'TB_APP_FILTER', 'tb_notify_raw',
     'six_member', 'six_list', 'six_list_place', 'six_list_who',
   ],
+  todo: ['todos', 'calendar_sync', 'todo_comments', 'todos_deleted', 'user_settings', 'equipment'],
 }
 
 async function sql(ref, query) {
