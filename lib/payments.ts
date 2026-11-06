@@ -107,6 +107,7 @@ export async function pay(params: {
   usePrepaid: boolean
   otherMethod: PaymentMethod | null
   memo: string | null
+  label?: string
 }) {
   if (params.usePrepaid && !params.customerId) throw new PaymentError(400, '고객이 연결되지 않은 예약은 선불을 사용할 수 없습니다')
   const payment = await rpc<Payment>('sh_shop_pay', {
@@ -120,7 +121,7 @@ export async function pay(params: {
   await recordCustomerHistory(params.customerId, {
     reservation_id: params.reservationId,
     action: 'payment',
-    description: `${params.reservationId ? '시술' : '직접 차감'} ${describePayment(payment)}${params.memo ? ` (${params.memo})` : ''}`,
+    description: `${params.label ?? (params.reservationId ? '시술' : '직접 차감')} ${describePayment(payment)}${params.memo ? ` (${params.memo})` : ''}`,
     new_value: payment,
   })
   return payment

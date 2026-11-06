@@ -47,5 +47,6 @@ export async function cleanupTestData() {
              delete from sh_shop_payments where customer_id in (select id from sh_shop_customers where phone like '0109999%');
              delete from sh_shop_reservation_history where reservation_id in (select id from sh_shop_reservations where customer_phone like '0109999%');
              delete from sh_shop_reservations where customer_phone like '0109999%';
-             delete from sh_shop_customers where phone like '0109999%';`)
+             delete from sh_shop_customers where phone like '0109999%';
+             select setval('sh_shop_customer_no_seq', coalesce((select max(customer_no) from sh_shop_customers), 0) + 1, false);`) // 테스트 고객이 쓴 고객번호 되돌림
 }

@@ -13,5 +13,17 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   if (customer.error || ledger.error || payments.error || history.error) {
     return NextResponse.json({ error: '조회 실패' }, { status: 500 })
   }
-  return NextResponse.json({ balance: customer.data, ledger: ledger.data, payments: payments.data, history: history.data })
+  // 유효 첫체험권 결제 표시 — 이 결제는 일반 취소가 막혀 있고 미결제로 되돌려야 함
+  const payIds = payments.data.map(p => p.id)
+  const trials = payIds.length
+    ? await supabase.from('sh_shop_trial_packages').select('id, payment_id').eq('status', 'active').in('payment_id', payIds)
+    : { data: [], error: null }
+  if (trials.error) return NextResponse.json({ error: '조회 실패' }, { status: 500 })
+  const trialByPayment = new Map(trials.data.map(t => [t.payment_id, t.id]))
+  return NextResponse.json({
+    balance: customer.data,
+    ledger: ledger.data,
+    payments: payments.data.map(p => ({ ...p, trial_package_id: trialByPayment.get(p.id) ?? null })),
+    history: history.data,
+  })
 }

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { fmtDate, fmtTime, fmtPrice, type CustomerHistory } from '../customer-utils'
+import { splitDeduction } from '@/lib/booking/prepaid'
 
 const CHARGE_OPTIONS = [
   { amount: 500000, label: '50만', bonus: 0 },
@@ -12,7 +13,9 @@ const LEDGER_LABEL: Record<string, string> = {
   charge: '충전', use: '사용', use_cancel: '사용 취소', refund: '환불',
   referral: '소개 보너스', referral_revoke: '소개 회수', bonus_grant: '보너스 추가',
 }
-const METHOD_LABEL: Record<string, string> = { card: '카드', cash: '현금', transfer: '계좌이체' }
+type Method = 'card' | 'cash' | 'transfer'
+const METHOD_LABEL: Record<Method, string> = { card: '카드', cash: '현금', transfer: '계좌이체' }
+const METHODS = Object.keys(METHOD_LABEL) as Method[]
 
 interface LedgerRow {
   id: number
@@ -31,11 +34,12 @@ interface PaymentRow {
   total_amount: number
   prepaid_cash_used: number
   prepaid_bonus_used: number
-  other_method: string | null
+  other_method: Method | null
   other_amount: number
   status: 'paid' | 'voided'
   memo: string | null
   created_at: string
+  trial_package_id: number | null
 }
 
 const signed = (n: number) => (n > 0 ? '+' : '') + n.toLocaleString()
@@ -58,6 +62,7 @@ export default function PrepaidPanel({ customerId, initialCash, initialBonus, on
   const [useForm, setUseForm] = useState<{ amount: string; memo: string } | null>(null)
   const [customForm, setCustomForm] = useState<{ amount: string; bonus: string } | null>(null)
   const [bonusForm, setBonusForm] = useState<{ amount: string; memo: string } | null>(null)
+  const [payForm, setPayForm] = useState<{ amount: string; memo: string; usePrepaid: boolean; method: Method } | null>(null)
   const [showLedger, setShowLedger] = useState(false)
 
   const reload = useCallback(async () => {
@@ -125,8 +130,24 @@ export default function PrepaidPanel({ customerId, initialCash, initialBonus, on
   }
 
   const handleVoid = (p: PaymentRow) => {
+    if (p.trial_package_id) {
+      if (!confirm(`첫체험권 결제 ${fmtPrice(p.total_amount)}을 취소하고 미결제로 되돌릴까요? 등록·사용 내역은 유지되고 선불 사용분은 잔액으로 복원됩니다.`)) return
+      post(`void-${p.id}`, `/api/trial/${p.trial_package_id}/unpay`, {})
+      return
+    }
     if (!confirm(`${fmtPrice(p.total_amount)} 결제를 취소할까요? 선불 사용분은 잔액으로 복원됩니다.`)) return
     post(`void-${p.id}`, `/api/payments/${p.id}/void`, {})
+  }
+
+  const payAmount = Number(payForm?.amount) || 0
+  const paySplit = payForm?.usePrepaid ? splitDeduction(payAmount, cash, bonus) : { cash: 0, bonus: 0, other: payAmount }
+
+  const handlePay = async () => {
+    if (!payForm) return
+    const ok = await post('pay', `/api/customers/${customerId}/payments`, {
+      amount: payAmount, memo: payForm.memo, use_prepaid: payForm.usePrepaid, other_method: paySplit.other > 0 ? payForm.method : null,
+    })
+    if (ok) setPayForm(null)
   }
 
   const total = cash + bonus
@@ -134,7 +155,7 @@ export default function PrepaidPanel({ customerId, initialCash, initialBonus, on
 
   return (
     <div className="bg-white/85 rounded-2xl border border-brand-100 p-3 mb-4">
-      {err && <p className="text-xs text-red-500 bg-red-50 rounded-lg px-3 py-2 mb-2">{err}</p>}
+      {err && <p className="sticky top-2 z-10 text-xs text-red-500 bg-red-50 rounded-lg px-3 py-2 mb-2">{err}</p>}
       <div className="flex items-center justify-between">
         <p className="text-xs font-700 text-gray-400">선불 충전금</p>
         <span className={`text-[10px] font-700 px-2 py-0.5 rounded-full ${total > 0 ? 'bg-brand-500 text-white' : 'bg-gray-100 text-gray-400'}`}>
@@ -167,6 +188,7 @@ export default function PrepaidPanel({ customerId, initialCash, initialBonus, on
       )}
 
       <div className="flex gap-1.5 mt-1.5">
+        <button onClick={() => setPayForm(f => f ? null : { amount: '', memo: '', usePrepaid: total > 0, method: 'card' })} disabled={busy !== null} className="flex-1 py-1.5 rounded-lg text-xs font-600 text-brand-600 bg-white border border-brand-100 disabled:opacity-40">결제 추가</button>
         <button onClick={() => setBonusForm(f => f ? null : { amount: '', memo: '' })} disabled={busy !== null} className="flex-1 py-1.5 rounded-lg text-xs font-600 text-brand-600 bg-white border border-brand-100 disabled:opacity-40">보너스 추가</button>
         {total > 0 && (
           <>
@@ -177,6 +199,35 @@ export default function PrepaidPanel({ customerId, initialCash, initialBonus, on
           </>
         )}
       </div>
+
+      {payForm && (
+        <div className="mt-2 space-y-1.5 rounded-xl bg-gray-50 p-2">
+          <input className={inp} placeholder="품목 (예: 홈케어 세럼)" value={payForm.memo} onChange={e => setPayForm({ ...payForm, memo: e.target.value })} />
+          <input type="number" inputMode="numeric" className={inp} placeholder="결제 금액 (원)" value={payForm.amount} onChange={e => setPayForm({ ...payForm, amount: e.target.value })} />
+          {total > 0 && (
+            <label className="flex items-center justify-between px-1 py-0.5 text-xs text-gray-600">
+              <span>선불 사용{payForm.usePrepaid && payAmount > 0 ? ` (실제 ${fmtPrice(paySplit.cash)} + 보너스 ${fmtPrice(paySplit.bonus)})` : ''}</span>
+              <input type="checkbox" checked={payForm.usePrepaid} onChange={e => setPayForm({ ...payForm, usePrepaid: e.target.checked })} className="w-4 h-4 accent-[#bc7659]" />
+            </label>
+          )}
+          {(paySplit.other > 0 || payAmount === 0) && (
+            <div>
+              {payForm.usePrepaid && paySplit.other > 0 && <p className="text-[11px] text-gray-500 mb-1">부족분 {fmtPrice(paySplit.other)} 결제수단</p>}
+              <div className="flex gap-1.5">
+                {METHODS.map(m => (
+                  <button key={m} type="button" onClick={() => setPayForm({ ...payForm, method: m })} className="flex-1 py-1.5 rounded-lg text-xs font-600 border"
+                    style={payForm.method === m ? { background: '#bc7659', color: '#fff', borderColor: '#bc7659' } : { color: '#a5624a', borderColor: '#f3e6de', background: '#fff' }}>
+                    {METHOD_LABEL[m]}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          <button onClick={handlePay} disabled={busy !== null || !Number.isInteger(payAmount) || payAmount < 1 || !payForm.memo.trim()} className="w-full py-2 rounded-lg text-xs font-700 text-white disabled:opacity-40" style={{ background: '#bc7659' }}>
+            {busy === 'pay' ? '처리 중...' : `${fmtPrice(payAmount)} 결제 추가`}
+          </button>
+        </div>
+      )}
 
       {bonusForm && (
         <div className="mt-2 space-y-1.5 rounded-xl bg-gray-50 p-2">
@@ -217,7 +268,7 @@ export default function PrepaidPanel({ customerId, initialCash, initialBonus, on
                       {fmtPrice(p.total_amount)}
                       {p.prepaid_cash_used + p.prepaid_bonus_used > 0 && ` · 선불 ${(p.prepaid_cash_used + p.prepaid_bonus_used).toLocaleString()}`}
                       {p.other_amount > 0 && p.other_method && ` · ${METHOD_LABEL[p.other_method]} ${p.other_amount.toLocaleString()}`}
-                      {!p.reservation_id && ` (${p.memo ?? '직접'})`}
+                      {p.trial_package_id ? ' (첫체험권)' : !p.reservation_id && ` (${p.memo ?? '직접'})`}
                     </span>
                     {p.status === 'paid' && (
                       <button onClick={() => handleVoid(p)} disabled={busy !== null} className="shrink-0 text-[10px] text-gray-400 border border-gray-200 rounded px-1.5">취소</button>
